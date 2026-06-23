@@ -1,60 +1,30 @@
-import uuid
-from io import BytesIO
 from pathlib import Path
-from PIL import Image, ImageOps
+import cv2
+import numpy as np
 
-imagems_dir = Path("imagens")
+imagems_dir = Path(__file__).resolve().parent.parent / "imagens"
 
-def processar_imagem(contento: bytes) -> str:
-    """
-    Processa e redimensiona uma imagem para o tamanho padrão 512x512.
-    
-    Args:
-        contento: bytes da imagem
-        
-    Returns:
-        str: nome do arquivo salvo
-        
-    Raises:
-        ValueError: se a imagem for inválida ou corrompida
-    """
-    # Garante que a pasta existe
-    imagems_dir.mkdir(exist_ok=True)
+def processar_imagem(conteudo: bytes) -> np.ndarray:
 
     try:
-        # Abrir e validar imagem
-        with Image.open(BytesIO(contento)) as original:
-            # Validar que a imagem tem dimensões válidas
-            if original.width <= 0 or original.height <= 0:
-                raise ValueError(f"Dimensões inválidas: {original.width}x{original.height}")
-            
-            # Corrigir orientação EXIF
-            img = ImageOps.exif_transpose(original)
-            
-            # Validar novamente após transformação EXIF
-            if img.width <= 0 or img.height <= 0:
-                raise ValueError(f"Dimensões inválidas após EXIF: {img.width}x{img.height}")
-            
-            # Converter para RGB
-            if img.mode in ("RGBA", "LA", "P"):
-                img = img.convert("RGB")
-            
-            # Redimensionar para 512x512
-            img = img.resize((512, 512), Image.Resampling.LANCZOS)
-            
-            # Gerar nome para o arquivo
-            nome_arquivo = f"{uuid.uuid4()}.jpg"
-            caminho_arquivo = imagems_dir / nome_arquivo
-            
-            # Salvar com otimização
-            img.save(caminho_arquivo, format="JPEG", quality=95, optimize=True)
+       np_array = np.frombuffer(conteudo, np.uint8)
 
-        return nome_arquivo
+       imagem = cv2.imdecode(np_array, cv2.IMREAD_GRAYSCALE)
+
+       if imagem is None:
+              raise ValueError("Imagem inválida ou corrompida")
+       
+       imagem  = cv2.resize(imagem, (224, 224))
+       imagem = cv2.GaussianBlur(imagem, (5, 5), 0)
+       clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+       imagem = clahe.apply(imagem)
+       imagem = imagem.astype(np.float32) / 255.0
+
+       imagem = np.expand_dims(imagem, axis=-1)
+
+       imagem = np.expand_dims(imagem, axis=0)
+
+       return imagem
         
-    except Image.UnidentifiedImageError as e:
-        raise ValueError(f"Arquivo não é uma imagem válida: {str(e)}")
-    except ValueError as e:
-        # Re-raise ValueError com contexto
-        raise ValueError(f"Erro ao processar imagem: {str(e)}")
     except Exception as e:
-        raise ValueError(f"Erro inesperado ao processar imagem: {str(e)}")
+        raise ValueError(f"Erro ao processar a imagem: {e}")

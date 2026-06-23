@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from PIL import Image
 import base64
+from io import BytesIO
 
 
 st.set_page_config(page_title="Teste 1", layout="centered")
@@ -30,11 +31,17 @@ if uploaded_file is not None:
 
                 if response.status_code == 200:
                     res = response.json()
-                    
+                    imagem_base64 = res.get("imagem_processada")
+                    imagem_bytes = base64.b64decode(imagem_base64) if imagem_base64 else None
+
                     with col2:
                         st.subheader("Resultado")
+                        if imagem_bytes:
+                            st.image(imagem_bytes, width="stretch")
+                        else:
+                            st.warning("Imagem processada não foi retornada.")
+
                         st.success(f"Status: {res.get('status')}")
-                        st.info(f"Arquivo: {res.get('arquivo_processado')}")
                         st.write(f"Previsão: {res.get('predicao')}")
                 else:
                     st.error(f"Erro na API: {response.status_code}")
