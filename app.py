@@ -1,5 +1,3 @@
-import base64
-
 import requests
 import streamlit as st
 from PIL import Image
@@ -32,23 +30,23 @@ if uploaded_files:
             st.image(Image.open(arquivo), caption=arquivo.name, width="stretch")
 
     if st.button("Analisar imagens", type="primary", use_container_width=True):
-        payload = {
-            "imagens": [
-                {
-                    "nome_arquivo": arquivo.name,
-                    "imagem_base64": base64.b64encode(
-                        arquivo.getvalue()
-                    ).decode("utf-8"),
-                }
-                for arquivo in uploaded_files
-            ]
-        }
+        files = [
+            (
+                "files",
+                (
+                    arquivo.name,
+                    arquivo.getvalue(),
+                    arquivo.type or "application/octet-stream",
+                ),
+            )
+            for arquivo in uploaded_files
+        ]
 
         with st.spinner("Enviando e analisando as imagens..."):
             try:
                 response = requests.post(
                     API_URL,
-                    json=payload,
+                    files=files,
                     timeout=REQUEST_TIMEOUT,
                 )
                 response.raise_for_status()
@@ -99,10 +97,10 @@ if uploaded_files:
                         st.error(resultado.get("erro", "Erro desconhecido"))
                         continue
 
-                    imagem_base64 = resultado.get("imagem_processada")
-                    if imagem_base64:
+                    imagem_processada = resultado.get("imagem_processada")
+                    if imagem_processada:
                         st.image(
-                            base64.b64decode(imagem_base64),
+                            Image.open(__import__("io").BytesIO(__import__("base64").b64decode(imagem_processada))),
                             width="stretch",
                         )
 
