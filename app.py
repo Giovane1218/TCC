@@ -1,5 +1,7 @@
 import requests
 import streamlit as st
+import io
+import base64
 from PIL import Image
 
 API_URL = "http://127.0.0.1:8000/predictAI/multiple"
@@ -100,7 +102,7 @@ if uploaded_files:
                     imagem_processada = resultado.get("imagem_processada")
                     if imagem_processada:
                         st.image(
-                            Image.open(__import__("io").BytesIO(__import__("base64").b64decode(imagem_processada))),
+                            Image.open(io.BytesIO(base64.b64decode(imagem_processada))),
                             width="stretch",
                         )
 

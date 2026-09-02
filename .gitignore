@@ -10,3 +10,6 @@ __pycache__/
 
 # vscode
 .vscode/
+
+#get-pip
+.get-pip.py
