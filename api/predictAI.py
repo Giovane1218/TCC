@@ -14,13 +14,13 @@ def processar_analisar(content: bytes) -> dict:
         raise ValueError("Imagem vazia")
 
     imagem_processada = processar_imagem(content, 512)
-    imagem_saida = (imagem_processada[0, :, :, 0] * 255).astype(np.uint8)
+    imagem_retorno = (imagem_processada[0, :, :, 0] * 255).astype(np.uint8)
 
-    sucesso, buffer = cv2.imencode(".png", imagem_saida)
+    sucesso, buffer = cv2.imencode(".png", imagem_retorno)
     if not sucesso:
         raise ValueError("Não foi possível codificar a imagem processada")
 
-    diagnostico = analisar_imagem(imagem_saida)
+    diagnostico = analisar_imagem(imagem_processada)
 
     return {
         "status": "success",
