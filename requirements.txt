@@ -6,3 +6,4 @@ Requests==2.34.2
 scikit-image==0.26.0
 streamlit==1.55.0
 uvicorn==0.52.4
+torch==2.14.0

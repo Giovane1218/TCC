@@ -3,10 +3,11 @@ import cv2
 import numpy as np
 from skimage import exposure
 from skimage.filters import unsharp_mask
+import torch
 
 imagems_dir = Path(__file__).resolve().parent.parent / "imagens"
 
-def processar_imagem(conteudo: bytes, target_size: int = 224) -> np.ndarray:
+def processar_imagem(conteudo: bytes, target_size: int = 512) -> np.ndarray:
     """Orquestra a leitura em bytes, o ajuste de proporção (prep_xray) 
 
     e o tratamento de contraste (convert_image_array).
@@ -121,3 +122,20 @@ def prep_xray(img: np.ndarray, target_size: int = 512) -> np.ndarray:
     )
     
     return final_xray
+
+def preparar_tensor_entrada(conteudo_bytes: bytes) -> torch.Tensor:
+    """
+    Recebe os bytes da imagem da requisição HTTP e converte para
+    o Tensor PyTorch exato esperado pela BaselineCNN: shape (1, 1, 512, 512), dtype float32 [0.0, 1.0].
+    """
+    # 1. Processa via image_utils (ajusta escala, CLAHE, padding 512x512)
+    # Retorna array numpy com shape (1, 512, 512, 1) e valores float32 entre 0.0 e 1.0
+    img_np = processar_imagem(conteudo_bytes, target_size=512)
+
+    # 2. Converte NumPy Array -> PyTorch Tensor
+    tensor = torch.from_numpy(img_np)
+
+    # 3. Transpõe eixos de (Batch, Height, Width, Channel) -> (Batch, Channel, Height, Width)
+    # Resultado final: torch.Size([1, 1, 512, 512])
+    tensor_entrada = tensor.permute(0, 3, 1, 2).float()
+    return tensor_entrada

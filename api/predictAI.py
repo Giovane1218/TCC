@@ -1,12 +1,15 @@
 import base64
 from typing import List
+
 import cv2
 import numpy as np
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from .image_utils import processar_imagem
-from modelo.modelo_mock import analisar_imagem  
+from modelo.tentativa_1.modelo_base import carregar_modelo, prever_imagem
+
 router = APIRouter()
+MODEL = carregar_modelo()
 
 
 def processar_analisar(content: bytes) -> dict:
@@ -20,11 +23,11 @@ def processar_analisar(content: bytes) -> dict:
     if not sucesso:
         raise ValueError("Não foi possível codificar a imagem processada")
 
-    diagnostico = analisar_imagem(imagem_processada)
-
+    diagnostico = prever_imagem(imagem_processada, model=MODEL)
     return {
         "status": "success",
         "predicao": diagnostico.get("resultado", "Nenhum resultado"),
+        "probabilidade": diagnostico.get("probabilidade", 0.0),
         "imagem_processada": base64.b64encode(buffer).decode("utf-8"),
         "detalhes": {"tamanho_bytes": len(content)},
     }

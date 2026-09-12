@@ -108,6 +108,9 @@ if uploaded_files:
 
                     st.success(f"Status: {resultado.get('status')}")
                     st.write(f"Previsão: {resultado.get('predicao')}")
+                    probabilidade = resultado.get("probabilidade")
+                    if probabilidade is not None:
+                        st.write(f"Probabilidade: {probabilidade:.4f}")
                     st.caption(
                         f"Tamanho recebido: "
                         f"{resultado.get('detalhes', {}).get('tamanho_bytes', 0)} bytes"
