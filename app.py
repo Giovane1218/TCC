@@ -2,11 +2,27 @@ import requests
 import streamlit as st
 import io
 import base64
+import os
 from PIL import Image
 
-API_URL = "http://127.0.0.1:8000/predictAI/multiple"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/predictAI/multiple")
 REQUEST_TIMEOUT = 120
 MAX_IMAGENS = 20
+
+
+def imagem_para_exibicao(arquivo):
+    imagem = Image.open(io.BytesIO(arquivo.getvalue()))
+    if imagem.mode == "P" and "transparency" in imagem.info:
+        imagem = imagem.convert("RGBA")
+    return imagem.convert("RGB")
+
+
+def imagem_processada_para_exibicao(conteudo):
+    imagem = Image.open(io.BytesIO(conteudo))
+    if imagem.mode == "P" and "transparency" in imagem.info:
+        imagem = imagem.convert("RGBA")
+    return imagem.convert("RGB")
+
 
 st.set_page_config(page_title="Análise de Raio-X", layout="wide")
 st.title("Análise de imagens de Raio-X")
@@ -29,7 +45,11 @@ if uploaded_files:
     colunas = st.columns(3)
     for indice, arquivo in enumerate(uploaded_files):
         with colunas[indice % 3]:
-            st.image(Image.open(arquivo), caption=arquivo.name, width="stretch")
+            st.image(
+                imagem_para_exibicao(arquivo),
+                caption=arquivo.name,
+                width="stretch",
+            )
 
     if st.button("Analisar imagens", type="primary", use_container_width=True):
         files = [
@@ -90,7 +110,7 @@ if uploaded_files:
                     st.markdown("#### Original")
                     arquivo = arquivos_por_nome.get(nome)
                     if arquivo is not None:
-                        st.image(Image.open(arquivo), width="stretch")
+                        st.image(imagem_para_exibicao(arquivo), width="stretch")
 
                 with col_processada:
                     st.markdown("#### Resultado")
@@ -102,7 +122,9 @@ if uploaded_files:
                     imagem_processada = resultado.get("imagem_processada")
                     if imagem_processada:
                         st.image(
-                            Image.open(io.BytesIO(base64.b64decode(imagem_processada))),
+                            imagem_processada_para_exibicao(
+                                base64.b64decode(imagem_processada)
+                            ),
                             width="stretch",
                         )
 
