@@ -1,5 +1,7 @@
 fastapi==0.141.1
 python-multipart==0.0.20
+pydantic==2.13.5
+ultralytics==8.4.150
 numpy==2.5.3
 opencv-python==4.13.0.92
 Pillow==12.3.0
