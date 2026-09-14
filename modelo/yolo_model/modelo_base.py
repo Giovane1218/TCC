@@ -87,6 +87,37 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
     # 4. Desenha as caixas delimitadoras na imagem usando o helper plot() do YOLO
     annotated_frame_bgr = results.plot()  # Retorna em formato BGR do OpenCV
 
+    #Adiiciona numeração às detecções
+    for idx, box in enumerate(results.boxes, start=1):
+        xyxy = box.xyxy[0].tolist()
+        x1 = int(xyxy[0])
+        y1 = int(xyxy[1])
+        x2 = int(xyxy[2])
+        y2 = int(xyxy[3])
+
+        texto = str(idx)
+
+        (largura, altura), _ = cv2.getTextSize(
+            texto,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            2
+        )
+
+        x_texto = x2 - largura - 10
+        y_texto = y2 - 10
+
+        cv2.putText(
+            annotated_frame_bgr,
+            texto,
+            (x_texto, y_texto),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 0, 255),
+            2,
+            cv2.LINE_AA
+        )
+
     # Codifica a imagem final anotada em PNG
     sucesso, buffer = cv2.imencode(".png", annotated_frame_bgr)
     if not sucesso:

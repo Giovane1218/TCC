@@ -10,3 +10,4 @@ scikit-image==0.26.0
 streamlit==1.55.0
 uvicorn==0.52.4
 torch==2.14.0
+reportlab==5.0.1

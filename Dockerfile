@@ -16,8 +16,8 @@ RUN pip install --upgrade pip \
 
 COPY api ./api
 COPY modelo ./modelo
-COPY queue ./queue
 COPY app.py main.py ./
+COPY utils ./utils
 
 EXPOSE 8000 8501
 
