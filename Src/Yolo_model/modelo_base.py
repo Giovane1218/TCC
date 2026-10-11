@@ -1,25 +1,24 @@
 from pathlib import Path
 import numpy as np
 from pydantic import BaseModel
-import torch
-import torch.nn as nn
 from ultralytics import YOLO
 import base64
 import binascii
 from typing import List
 import cv2
 import numpy as np
-from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from PIL import Image
 import io
+
+from Src.Exeption.ExceptionsType import ResultError
 
 
 
 
 def carregar_modelo(path: str | None = None) -> YOLO:
     if path is None:
-        path = str(Path(__file__).with_name("best.pt"))
+        path = str(Path(__file__).resolve().parents[2] / "Modelos" / "best.pt")
     model = YOLO(path)
     return model
 
@@ -69,7 +68,7 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
 
     # 3. Extrai as caixas delimitadoras e decide a frase de predição
     qtd_fraturas = len(results.boxes)
-    predicao_str = "Fratura detectada" if qtd_fraturas > 0 else "Nenhuma fratura detectada"
+    predicao_str = "Indicação de fratura" if qtd_fraturas > 0 else "Nenhuma indicação de fratura"
 
     detections = []
     for box in results.boxes:
@@ -121,10 +120,10 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
     # Codifica a imagem final anotada em PNG
     sucesso, buffer = cv2.imencode(".png", annotated_frame_bgr)
     if not sucesso:
-        raise ValueError("Não foi possível codificar a imagem processada com as caixas.")
+        raise ResultError
 
     return {
-        "status": "success",
+        "sucesso": True,
         "predicao": predicao_str,
         "total_fraturas": qtd_fraturas,
         "detecções": detections,

@@ -14,10 +14,9 @@ COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
-COPY api ./api
-COPY modelo ./modelo
-COPY app.py main.py ./
-COPY utils ./utils
+COPY Src ./Src
+COPY Modelos ./Modelos
+COPY main.py ./
 
 EXPOSE 8000 8501
 

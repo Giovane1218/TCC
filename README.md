@@ -1,21 +1,21 @@
 # Wrist X-Ray Fracture Analysis
 
-A FastAPI service and Streamlit interface for analyzing wrist radiographs with a trained Ultralytics YOLO model.
+A FastAPI service and Streamlit interface for analyzing wrist radiographs with a trained Ultralytics YOLO model. The API accepts multiple images in one request and returns per-image predictions and error details.
 
 ## Requirements
 
 - Docker Desktop with Docker Compose, for the containerized setup.
 - Python 3.14 and pip, for local setup. The Docker image uses Python 3.14.
-- The trained model weights at `modelo/yolo_model/best.pt`.
+- The trained model weights at `Modelos/best.pt`.
 
-The API loads `best.pt` when it starts. Keep the weights file in that exact location. The Docker build copies the `modelo` directory into the image.
+The API loads `best.pt` when it starts. Keep the weights file at `Modelos/best.pt`. The Docker image copies the `Src` and `Modelos` directories into the container.
 
 ## Run with Docker
 
-From the project root, build and start both the API and frontend:
+From the project root, build and start both the API and frontend using the Compose file in `Docker`:
 
 ```powershell
-docker compose up --build
+docker compose -f Docker/docker-compose.yml up --build
 ```
 
 Open the Streamlit interface at <http://localhost:8501>. The FastAPI interactive documentation is at <http://localhost:8000/docs>.
@@ -23,7 +23,7 @@ Open the Streamlit interface at <http://localhost:8501>. The FastAPI interactive
 To stop the services, press `Ctrl+C`, then run:
 
 ```powershell
-docker compose down
+docker compose -f Docker/docker-compose.yml down
 ```
 
 ## Run locally without Docker
@@ -54,10 +54,10 @@ In the second terminal, activate the same environment and start Streamlit:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-streamlit run app.py
+streamlit run Src\View\app.py
 ```
 
-Open the interface at <http://localhost:8501>. The local frontend defaults to the API at `http://127.0.0.1:8000/predictAI/multiple`. API documentation is available at <http://127.0.0.1:8000/docs>.
+Open the interface at <http://localhost:8501>. The frontend defaults to `http://127.0.0.1:8000/predictAI`. Set the `API_URL` environment variable if the API is running at a different address. API documentation is available at <http://127.0.0.1:8000/docs>.
 
 ### Linux
 
@@ -87,20 +87,20 @@ In a second terminal, go to the project root, activate the same environment, and
 
 ```bash
 source .venv/bin/activate
-python -m streamlit run app.py
+python -m streamlit run Src/View/app.py
 ```
 
-Open the interface at <http://localhost:8501>. The frontend connects to the API at `http://127.0.0.1:8000` by default.
+Open the interface at <http://localhost:8501>. The frontend defaults to `http://127.0.0.1:8000/predictAI`.
 
 ## API
 
-- `POST /predictAI`: analyze one image using multipart form data with the `file` field.
-- `POST /predictAI/multiple`: analyze 1 to 20 images using multipart form data with repeated `files` fields.
+- `POST /predictAI`: analyze 1 to 20 images using multipart form data with repeated `files` fields.
 
-Images must be JPEG or PNG and no larger than 10 MB each. Successful results include the prediction, the number of detected fractures, per-detection confidence and bounding boxes, and a base64-encoded annotated image. The model runs at image size 1024 with a detection confidence threshold of 0.25.
+The Streamlit interface accepts JPEG and PNG images, with a maximum of 20 images per analysis. Each image must be no larger than 5 MB. The response contains an overall `status`, image and success/error counts, and a `resultados` list. Successful items include `sucesso`, the prediction, the number of detected fractures, per-detection confidence and bounding boxes, and a base64-encoded annotated image. Failed items include `sucesso: false`, an HTTP `status_code`, an `erro` message, and the source `file` name. The model runs at image size 1024 with a detection confidence threshold of 0.25.
 
 ## Troubleshooting
 
-- **Model file not found:** verify `modelo/yolo_model/best.pt` exists before starting the API or building the image.
-- **Frontend cannot connect:** start the API first and check that port 8000 is available. With Docker Compose, start both services using `docker compose up --build`.
+- **Model file not found:** verify `Modelos/best.pt` exists before starting the API or building the image.
+- **Frontend cannot connect:** start the API first and check that port 8000 is available. With Docker Compose, start both services using `docker compose -f Docker/docker-compose.yml up --build`.
+- **Image exceeds the limit:** reduce the file size to 5 MB or less and upload it again.
 - **Dependency installation fails:** confirm Python 3.14 is installed and that the virtual environment is active before installing `requirements.txt`.

@@ -4,7 +4,6 @@
 Dockerfile
 docker-compose.yml
 
-tcc
 __pycache__
 *.pyc
 *.pyo
@@ -12,4 +11,5 @@ __pycache__
 .pytest_cache
 .vscode
 
-tests
+Testes
+Documentação
