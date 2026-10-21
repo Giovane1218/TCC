@@ -1,6 +1,7 @@
 # Ambiente virtual
 venv/
 .venv/
+.env
 
 # Cache do Python
 __pycache__/
@@ -15,3 +16,6 @@ __pycache__/
 .get-pip.py
 
 imagem_teste.png
+
+Docker/
+

@@ -1,20 +1,59 @@
+
 services:
+  migrations:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+    command:
+      - sh
+      - -c
+      - alembic upgrade head
+    restart: "no"
+
   api:
     build:
       context: ..
       dockerfile: Docker/Dockerfile
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - ../.env
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+    command:
+      - uvicorn
+      - App.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
     ports:
       - "8000:8000"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   frontend:
     build:
       context: ..
       dockerfile: Docker/Dockerfile
-    command: streamlit run Src/View/app.py --server.address 0.0.0.0 --server.port 8501
+    command:
+      - streamlit
+      - run
+      - View/app.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8501"
     environment:
-      API_URL: http://api:8000/predictAI
+      API_URL: http://api:8000/predict/predictAI
     depends_on:
       - api
     ports:
       - "8501:8501"
+    restart: unless-stopped
