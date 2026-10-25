@@ -1,106 +1,119 @@
-# Wrist X-Ray Fracture Analysis
+# Análise de fraturas em radiografias do punho
 
-A FastAPI service and Streamlit interface for analyzing wrist radiographs with a trained Ultralytics YOLO model.
+Aplicação composta por uma API FastAPI e uma interface Streamlit para analisar radiografias do punho usando um modelo YOLO treinado.
 
-## Requirements
+## Estrutura do projeto
 
-- Docker Desktop with Docker Compose, for the containerized setup.
-- Python 3.14 and pip, for local setup. The Docker image uses Python 3.14.
-- The trained model weights at `modelo/yolo_model/best.pt`.
+```text
+.
+├── App/
+│   ├── api/                 # Rotas HTTP
+│   ├── core/                # Configuração, segurança, erros e modelo YOLO
+│   ├── database/            # Conexão e execução de migrações
+│   ├── models/              # Modelos SQLAlchemy
+│   ├── repositories/        # Acesso a dados
+│   ├── schemas/             # Schemas Pydantic
+│   ├── services/            # Senhas e tokens
+│   ├── usecases/            # Casos de uso da aplicação
+│   └── main.py              # Aplicação FastAPI
+├── View/
+│   ├── assets/              # Imagens e recursos da interface
+│   └── app.py               # Aplicação Streamlit
+├── migrations/              # Migrações Alembic
+├── Testes/                  # Scripts de teste e manutenção
+├── Documentação/            # Documentação complementar
+├── Dockerfile.back          # Imagem da API
+├── Dockerfile.front         # Imagem do frontend
+├── compose.yaml             # API, frontend e MySQL
+├── pyproject.toml           # Dependências e configuração do projeto
+└── uv.lock                  # Versões resolvidas pelo uv
+```
 
-The API loads `best.pt` when it starts. Keep the weights file in that exact location. The Docker build copies the `modelo` directory into the image.
+O arquivo de pesos do modelo deve estar em `App/core/yolo_model/pesos/best.pt`. A imagem Docker da API copia a pasta `App`, incluindo esse arquivo.
 
-## Run with Docker
+## Executar com Docker
 
-From the project root, build and start both the API and frontend:
+### Pré-requisitos
+
+- Docker Desktop (Windows/macOS) ou Docker Engine com o plugin Docker Compose (Linux).
+- O arquivo de pesos `App/core/yolo_model/pesos/best.pt`.
+
+### Configurar o ambiente
+
+No PowerShell, a partir da raiz do repositório, crie o arquivo `.env` a partir do exemplo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edite `.env` e substitua os valores de exemplo. Configure:
+
+- `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD` e `MYSQL_ROOT_PASSWORD` para o banco de dados.
+- `AUTH_SECRET_KEY` com uma chave aleatória de pelo menos 32 caracteres. Para gerar uma no PowerShell com Python instalado:
+
+  ```powershell
+  python -c "import secrets; print(secrets.token_hex(32))"
+  ```
+
+- `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_REGISTRO_PROFISSIONAL`, `ADMIN_CARGO` e `ADMIN_UF_REGISTRO` para a criação do primeiro administrador. A senha precisa ter pelo menos 12 caracteres.
+
+Não compartilhe nem versione o arquivo `.env`. O Compose configura o endereço interno do banco para a API automaticamente; `MYSQL_HOST` e `MYSQL_PORT` no `.env.example` servem para execução fora do Compose, enquanto a porta publicada no host é controlada por `MYSQL_PORT` (padrão `3306`).
+
+### Construir e iniciar
+
+Na raiz do projeto:
 
 ```powershell
 docker compose up --build
 ```
 
-Open the Streamlit interface at <http://localhost:8501>. The FastAPI interactive documentation is at <http://localhost:8000/docs>.
+O Compose inicia o MySQL, aguarda o banco ficar saudável e então inicia a API e o frontend. Na primeira inicialização, a API executa as migrações e cria o administrador inicial se ainda não existir.
 
-To stop the services, press `Ctrl+C`, then run:
+- Interface Streamlit: <http://localhost:8501>
+- Documentação interativa da API: <http://localhost:8000/docs>
+
+Para executar em segundo plano:
+
+```powershell
+docker compose up --build -d
+```
+
+Ver os logs:
+
+```powershell
+docker compose logs -f api frontend
+```
+
+Parar os serviços:
 
 ```powershell
 docker compose down
 ```
 
-## Run locally without Docker
+O banco permanece salvo no volume Docker `mysql_data`. Para apagar também os dados persistidos do banco, use `docker compose down --volumes`; essa operação é destrutiva e remove os dados do MySQL.
 
-Open two PowerShell terminals in the project root. Create and activate a virtual environment in the first terminal, then install the dependencies:
+## Serviços e rotas da API
 
-```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+- `POST /auth/login`: autentica um usuário e retorna um token Bearer.
+- `POST /predict/predictAI`: recebe imagens no campo multipart `files` e retorna os resultados da análise. Requer autenticação.
+- `GET /user/me`: retorna os dados do usuário autenticado.
+- `GET /user/userByEmail`: consulta um usuário por e-mail; requer administrador.
+- `POST /user/userRegister`: cadastra um usuário; requer administrador.
+- `PUT /user/userUpdate_email`: atualiza um usuário; requer administrador.
+- `DELETE /user/userDelete_email`: remove um usuário; requer administrador.
 
-If PowerShell blocks activation, allow scripts for this terminal session and activate again:
+## Dependências
 
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-.\.venv\Scripts\Activate.ps1
-```
-
-Start the API in the first terminal:
+O projeto usa `uv` para gerenciar as dependências Python. As imagens Docker instalam os grupos definidos em `pyproject.toml` usando `uv.lock`: o grupo `api` no serviço da API e o grupo `frontend` no Streamlit. Para atualizar o ambiente local com ambos os grupos, instale o uv e execute:
 
 ```powershell
-python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uv sync --all-groups
 ```
 
-In the second terminal, activate the same environment and start Streamlit:
+## Solução de problemas
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-streamlit run app.py
-```
-
-Open the interface at <http://localhost:8501>. The local frontend defaults to the API at `http://127.0.0.1:8000/predictAI/multiple`. API documentation is available at <http://127.0.0.1:8000/docs>.
-
-### Linux
-
-Install Python 3.14 and pip. On Debian or Ubuntu, also install the OpenCV system libraries:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libgl1 libglib2.0-0
-```
-
-From the project root, create and activate a virtual environment, then install the dependencies:
-
-```bash
-python3.14 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-Start the API in the first terminal:
-
-```bash
-python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-In a second terminal, go to the project root, activate the same environment, and start the frontend:
-
-```bash
-source .venv/bin/activate
-python -m streamlit run app.py
-```
-
-Open the interface at <http://localhost:8501>. The frontend connects to the API at `http://127.0.0.1:8000` by default.
-
-## API
-
-- `POST /predictAI`: analyze one image using multipart form data with the `file` field.
-- `POST /predictAI/multiple`: analyze 1 to 20 images using multipart form data with repeated `files` fields.
-
-Images must be JPEG or PNG and no larger than 10 MB each. Successful results include the prediction, the number of detected fractures, per-detection confidence and bounding boxes, and a base64-encoded annotated image. The model runs at image size 1024 with a detection confidence threshold of 0.25.
-
-## Troubleshooting
-
-- **Model file not found:** verify `modelo/yolo_model/best.pt` exists before starting the API or building the image.
-- **Frontend cannot connect:** start the API first and check that port 8000 is available. With Docker Compose, start both services using `docker compose up --build`.
-- **Dependency installation fails:** confirm Python 3.14 is installed and that the virtual environment is active before installing `requirements.txt`.
+- **A API não inicia:** verifique os logs com `docker compose logs -f api`. Confirme se as variáveis do `.env` estão preenchidas e se `AUTH_SECRET_KEY` tem pelo menos 32 caracteres.
+- **Erro de conexão com MySQL:** veja `docker compose logs -f db` e aguarde o healthcheck do banco. No Compose, a API se conecta ao serviço `db` pela rede interna.
+- **Falha ao carregar o modelo:** confirme que `App/core/yolo_model/pesos/best.pt` existe antes de construir a imagem.
+- **Porta ocupada:** ajuste `MYSQL_PORT` para a porta publicada do banco ou libere as portas `8000`, `8501` e `3306`, conforme aplicável.
+- **Build falha em `apt-get update`:** essa etapa instala bibliotecas de sistema da imagem da API; ela acontece antes do `uv sync` e não é corrigida alterando as dependências Python.

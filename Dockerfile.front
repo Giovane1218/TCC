@@ -1,0 +1,20 @@
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/app/.venv \
+    UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=60 \
+    UV_HTTP_RETRIES=5
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project --no-dev --group frontend \
+    && uv cache clean
+
+COPY View ./View
+
+EXPOSE 8501
+
+CMD ["uv", "run", "--no-sync", "--group", "frontend", "streamlit", "run", "View/app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]

@@ -1,25 +1,21 @@
 from pathlib import Path
 import numpy as np
-from pydantic import BaseModel
-import torch
-import torch.nn as nn
+from pydantic import BaseModel, Field
 from ultralytics import YOLO
 import base64
 import binascii
 from typing import List
 import cv2
-import numpy as np
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 from PIL import Image
 import io
-
-
+from core.exceptions.exceptions_type import PredictError
 
 
 def carregar_modelo(path: str | None = None) -> YOLO:
     if path is None:
-        path = str(Path(__file__).with_name("best.pt"))
+        path = str(
+            Path(__file__).resolve().parents[1] / "yolo_model" / "pesos" / "best.pt"
+        )
     model = YOLO(path)
     return model
 
@@ -29,7 +25,6 @@ def decodificar_base64(valor: str) -> bytes:
         return base64.b64decode(valor, validate=True)
     except (binascii.Error, ValueError, TypeError) as erro:
         raise ValueError("Base64 inválido") from erro
-
 
 
 class ImagemRequest(BaseModel):
@@ -62,32 +57,36 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
     # 2. Executa a predição com o YOLO
     results = model.predict(
         source=img_np,
-        imgsz=1024,          # Resolução usada no treinamento
-        conf=0.25,           # Threshold de confiança
-        verbose=False
+        imgsz=1024,  # Resolução usada no treinamento
+        conf=0.25,  # Threshold de confiança
+        verbose=False,
     )[0]
 
     # 3. Extrai as caixas delimitadoras e decide a frase de predição
     qtd_fraturas = len(results.boxes)
-    predicao_str = "Fratura detectada" if qtd_fraturas > 0 else "Nenhuma fratura detectada"
+    predicao_str = (
+        "Indicação de fratura" if qtd_fraturas > 0 else "Nenhuma indicação de fratura"
+    )
 
     detections = []
     for box in results.boxes:
         xyxy = box.xyxy[0].tolist()
-        detections.append({
-            "confidence": round(float(box.conf[0]), 4),
-            "bbox_pixel": {
-                "xmin": round(xyxy[0], 2),
-                "ymin": round(xyxy[1], 2),
-                "xmax": round(xyxy[2], 2),
-                "ymax": round(xyxy[3], 2)
+        detections.append(
+            {
+                "confidence": round(float(box.conf[0]), 4),
+                "bbox_pixel": {
+                    "xmin": round(xyxy[0], 2),
+                    "ymin": round(xyxy[1], 2),
+                    "xmax": round(xyxy[2], 2),
+                    "ymax": round(xyxy[3], 2),
+                },
             }
-        })
+        )
 
     # 4. Desenha as caixas delimitadoras na imagem usando o helper plot() do YOLO
     annotated_frame_bgr = results.plot()  # Retorna em formato BGR do OpenCV
 
-    #Adiiciona numeração às detecções
+    # Adiiciona numeração às detecções
     for idx, box in enumerate(results.boxes, start=1):
         xyxy = box.xyxy[0].tolist()
         x1 = int(xyxy[0])
@@ -97,12 +96,7 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
 
         texto = str(idx)
 
-        (largura, altura), _ = cv2.getTextSize(
-            texto,
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            2
-        )
+        (largura, altura), _ = cv2.getTextSize(texto, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)
 
         x_texto = x2 - largura - 10
         y_texto = y2 - 10
@@ -115,16 +109,16 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
             1,
             (0, 0, 255),
             2,
-            cv2.LINE_AA
+            cv2.LINE_AA,
         )
 
     # Codifica a imagem final anotada em PNG
     sucesso, buffer = cv2.imencode(".png", annotated_frame_bgr)
     if not sucesso:
-        raise ValueError("Não foi possível codificar a imagem processada com as caixas.")
+        raise PredictError
 
     return {
-        "status": "success",
+        "sucesso": True,
         "predicao": predicao_str,
         "total_fraturas": qtd_fraturas,
         "detecções": detections,

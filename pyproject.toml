@@ -1,0 +1,42 @@
+[project]
+name = "projeto-tcc"
+version = "2.1.1"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+frontend = [
+    "requests==2.34.2",
+    "streamlit==1.66.0",
+]
+api = [
+    "aiomysql==0.3.2",
+    "alembic==1.20.0",
+    "cryptography>=50.0.2",
+    "email-validator==2.3.0",
+    "fastapi==0.156.4",
+    "numpy==2.5.4",
+    "opencv-python==5.0.0.93",
+    "pillow==12.3.0",
+    "pydantic==2.14.1",
+    "python-dotenv==1.2.4",
+    "python-multipart==0.0.32",
+    "reportlab==5.0.1",
+    "sqlalchemy[asyncio]==2.1.5",
+    "torch==2.14.1",
+    "torchvision==0.29.1",
+    "ultralytics==8.4.183",
+    "uvicorn[standard]==0.54.0",
+]
+
+# Use wheels CPU-only for the API container.
+# The Compose configuration currently does not expose a GPU to the container.
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
