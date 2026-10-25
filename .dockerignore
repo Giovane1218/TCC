@@ -15,3 +15,4 @@ __pycache__/
 !.env.example
 Testes/
 Documentação/
+venv/
