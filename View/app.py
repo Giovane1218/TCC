@@ -21,6 +21,11 @@ st.set_page_config(
 )
 
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/predict/predictAI")
+API_BASE_URL = os.getenv("API_BASE_URL")
+if not API_BASE_URL:
+    api_base, separador, _ = API_URL.rpartition("/predict/predictAI")
+    API_BASE_URL = api_base if separador else API_URL.rsplit("/", 1)[0]
+API_BASE_URL = API_BASE_URL.rstrip("/")
 REQUEST_TIMEOUT = 600
 MAX_IMG = 20
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -228,6 +233,7 @@ st.markdown(
             box-shadow: 0 4px 12px rgba(198, 40, 40, 0.2);
         }
 
+
         html[data-theme="dark"] div.stButton > button {
             border-color: #16477d;
             background: linear-gradient(135deg, #16477d 0%, #0c2f5f 100%);
@@ -290,6 +296,10 @@ st.markdown(
 
 if "pagina" not in st.session_state:
     st.session_state.pagina = "inicio"
+if "access_token" not in st.session_state:
+    st.session_state.access_token = None
+if "usuario_logado" not in st.session_state:
+    st.session_state.usuario_logado = None
 
 
 # ============================================================
@@ -384,6 +394,317 @@ def detalhe_erro_api(response):
     return str(payload)
 
 
+def requisitar_api(metodo, endpoint, token=None, timeout=30, **kwargs):
+    headers = kwargs.pop("headers", {})
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        response = requests.request(
+            metodo,
+            f"{API_BASE_URL}{endpoint}",
+            headers=headers,
+            timeout=timeout,
+            **kwargs,
+        )
+        response.raise_for_status()
+        return response
+    except requests.Timeout:
+        st.error("A API demorou além do limite para responder.")
+    except requests.ConnectionError:
+        st.error("Não foi possível conectar à API.")
+    except requests.HTTPError:
+        st.error(f"Erro HTTP {response.status_code}: {detalhe_erro_api(response)}")
+    except requests.RequestException as erro:
+        st.error(f"Falha ao consultar a API: {erro}")
+    return None
+
+
+def carregar_usuario(token):
+    response = requisitar_api("GET", "/user/me", token=token)
+    if response is None:
+        return None
+    try:
+        usuario = response.json()
+    except ValueError:
+        st.error("A API retornou os dados do usuário em formato inválido.")
+        return None
+    campos_obrigatorios = {"username", "email", "nivel_acesso"}
+    if not isinstance(usuario, dict) or not campos_obrigatorios.issubset(usuario):
+        st.error("A API retornou os dados do usuário em formato inválido.")
+        return None
+    return usuario
+
+
+def realizarLogin(email, senha):
+    if not email or not senha:
+        st.error("Digite o e-mail e a senha.")
+        return
+
+    response = requisitar_api(
+        "POST",
+        "/auth/login",
+        json={"email": email, "password": senha},
+    )
+    if response is None:
+        return
+
+    try:
+        resposta = response.json()
+    except ValueError:
+        st.error("A API retornou a resposta de login em formato inválido.")
+        return
+
+    token = resposta.get("access_token") if isinstance(resposta, dict) else None
+    if not token:
+        st.error("A API não retornou um token de acesso válido.")
+        return
+
+    usuario = carregar_usuario(token)
+    if usuario is None:
+        return
+
+    st.session_state.access_token = token
+    st.session_state.usuario_logado = usuario
+    st.session_state.login_required = False
+    st.session_state.pagina = "inicio"
+    st.success(f"Bem-vindo(a), {usuario['username']}!")
+    st.rerun()
+
+
+def encerrar_sessao():
+    st.session_state.access_token = None
+    st.session_state.usuario_logado = None
+    st.session_state.pagina = "inicio"
+    st.rerun()
+
+
+def buscar_usuario_por_email(email):
+    response = requisitar_api(
+        "GET",
+        "/user/userByEmail",
+        token=st.session_state.access_token,
+        params={"email": email},
+    )
+    if response is None:
+        return None
+    try:
+        usuario = response.json()
+    except ValueError:
+        st.error("A API retornou os dados do usuário em formato inválido.")
+        return None
+    if not isinstance(usuario, dict):
+        st.error("A API retornou os dados do usuário em formato inválido.")
+        return None
+    return usuario
+
+
+def usuario_administrador():
+    usuario = st.session_state.get("usuario_logado")
+    return isinstance(usuario, dict) and usuario.get("nivel_acesso") == 1
+
+
+def renderizar_formulario_usuario(modo, usuario=None, prefixo=None):
+    usuario = usuario or {}
+    prefixo = prefixo or modo
+    with st.form(f"form_usuario_{prefixo}"):
+        coluna1, coluna2 = st.columns(2)
+        with coluna1:
+            username = st.text_input(
+                "Nome",
+                value=usuario.get("username", ""),
+                key=f"{prefixo}_username",
+            )
+            email = st.text_input(
+                "E-mail",
+                value=usuario.get("email", ""),
+                key=f"{prefixo}_email",
+            )
+            registro = st.text_input(
+                "Registro profissional",
+                value=usuario.get("registro_profissional", ""),
+                key=f"{prefixo}_registro",
+            )
+        with coluna2:
+            cargo = st.text_input(
+                "Cargo",
+                value=usuario.get("cargo", ""),
+                key=f"{prefixo}_cargo",
+            )
+            uf_registro = st.text_input(
+                "UF do registro",
+                value=usuario.get("uf_registro", ""),
+                max_chars=2,
+                key=f"{prefixo}_uf",
+            )
+            if modo == "registro":
+                senha = st.text_input(
+                    "Senha (mínimo de 12 caracteres)",
+                    type="password",
+                    key=f"{prefixo}_senha",
+                )
+            else:
+                ativo = st.checkbox(
+                    "Usuário ativo",
+                    value=usuario.get("ativo", True),
+                    key=f"{prefixo}_ativo",
+                )
+
+        enviar = st.form_submit_button(
+            "Cadastrar usuário" if modo == "registro" else "Salvar alterações",
+            width="stretch",
+        )
+
+    if not enviar:
+        return None
+
+    dados = {
+        "username": username.strip(),
+        "email": email.strip(),
+        "registro_profissional": registro.strip(),
+        "cargo": cargo.strip(),
+        "uf_registro": uf_registro.strip().upper(),
+    }
+    if modo == "registro":
+        dados["password"] = senha
+    else:
+        dados["ativo"] = ativo
+    return dados
+
+
+# ============================================================
+#                       TELA DE CADASTRO DE USUARIO
+# ============================================================
+def renderizar_tela_cadastro_usuario():
+    if not usuario_administrador():
+        st.error("Somente administradores podem cadastrar usuários.")
+        return
+
+    renderizar_cabecalho(
+        "Cadastrar usuário",
+        "Preencha os dados para criar uma nova conta de acesso.",
+    )
+    dados = renderizar_formulario_usuario("registro")
+    if dados is None:
+        return
+
+    response = requisitar_api(
+        "POST",
+        "/user/userRegister",
+        token=st.session_state.access_token,
+        json=dados,
+    )
+    if response is not None:
+        st.success("Usuário cadastrado com sucesso.")
+
+
+# ============================================================
+#                       TELA DE ATUALIZACAO DE USUARIO
+# ============================================================
+def renderizar_tela_atualizar_usuario():
+    if not usuario_administrador():
+        st.error("Somente administradores podem alterar usuários.")
+        return
+
+    renderizar_cabecalho(
+        "Alterar usuário",
+        "Busque a conta que deseja alterar pelo e-mail.",
+    )
+    with st.form("buscar_usuario_atualizacao"):
+        email_busca = st.text_input("E-mail do usuário")
+        buscar = st.form_submit_button("Buscar usuário", width="stretch")
+
+    if buscar:
+        usuario = buscar_usuario_por_email(email_busca.strip())
+        if usuario is not None:
+            st.session_state.usuario_em_edicao = usuario
+
+    usuario = st.session_state.get("usuario_em_edicao")
+    if not isinstance(usuario, dict):
+        return
+
+    st.info(f"Editando: {usuario.get('username')} ({usuario.get('email')})")
+    chave = hashlib.sha256(usuario["email"].encode("utf-8")).hexdigest()[:12]
+    dados = renderizar_formulario_usuario(
+        "atualizacao",
+        usuario=usuario,
+        prefixo=f"usuario_edicao_{chave}",
+    )
+    if dados is None:
+        return
+
+    email_original = usuario["email"]
+    response = requisitar_api(
+        "PUT",
+        "/user/userUpdate_email",
+        token=st.session_state.access_token,
+        params={"email": email_original},
+        json=dados,
+    )
+    if response is not None:
+        st.session_state.pop("usuario_em_edicao", None)
+        st.success("Usuário atualizado com sucesso.")
+        st.rerun()
+
+
+# ============================================================
+#                       TELA DE EXCLUSAO DE USUARIO
+# ============================================================
+def renderizar_tela_excluir_usuario():
+    if not usuario_administrador():
+        st.error("Somente administradores podem excluir usuários.")
+        return
+
+    renderizar_cabecalho(
+        "Excluir usuário",
+        "Busque a conta que deseja excluir pelo e-mail.",
+    )
+    with st.form("buscar_usuario_exclusao"):
+        email_busca = st.text_input("E-mail do usuário")
+        buscar = st.form_submit_button("Buscar usuário", width="stretch")
+
+    if buscar:
+        usuario = buscar_usuario_por_email(email_busca.strip())
+        if usuario is not None:
+            st.session_state.usuario_para_excluir = usuario
+
+    usuario = st.session_state.get("usuario_para_excluir")
+    if not isinstance(usuario, dict):
+        return
+
+    st.warning(
+        f"Conta selecionada: {usuario.get('username')} ({usuario.get('email')}). "
+        "Esta ação não pode ser desfeita."
+    )
+    chave = hashlib.sha256(usuario["email"].encode("utf-8")).hexdigest()[:12]
+    with st.form(f"confirmar_exclusao_{chave}"):
+        confirmar = st.checkbox(
+            "Confirmo a exclusão desta conta.",
+            key=f"confirmar_exclusao_{chave}",
+        )
+        excluir = st.form_submit_button("Excluir usuário", width="stretch")
+
+    if not excluir:
+        return
+    if not confirmar:
+        st.error("Marque a confirmação antes de excluir o usuário.")
+        return
+
+    email_excluido = usuario["email"]
+    response = requisitar_api(
+        "DELETE",
+        "/user/userDelete_email",
+        token=st.session_state.access_token,
+        params={"email": email_excluido},
+    )
+    if response is not None:
+        st.session_state.pop("usuario_para_excluir", None)
+        if email_excluido == st.session_state.usuario_logado.get("email"):
+            encerrar_sessao()
+        st.success("Usuário excluído com sucesso.")
+        st.rerun()
+
+
 def Iniciar_analise(arquivos):
     if not arquivos:
         st.warning("Selecione ao menos uma radiografia antes de iniciar a análise.")
@@ -409,7 +730,15 @@ def Iniciar_analise(arquivos):
 
     with st.spinner("Enviando e analisando as imagens..."):
         try:
-            response = requests.post(API_URL, files=files, timeout=REQUEST_TIMEOUT)
+            headers = {}
+            if st.session_state.access_token:
+                headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+            response = requests.post(
+                API_URL,
+                files=files,
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+            )
             response.raise_for_status()
             resposta = response.json()
         except requests.Timeout:
@@ -421,7 +750,11 @@ def Iniciar_analise(arquivos):
         except requests.HTTPError:
             detalhe = detalhe_erro_api(response)
             if response.status_code == 401:
-                detalhe += " Configure API_TOKEN no ambiente para usar a API protegida."
+                st.session_state.access_token = None
+                st.session_state.usuario_logado = None
+                st.session_state.login_required = True
+                st.session_state.pagina = "login"
+                st.rerun()
             st.error(f"Erro HTTP {response.status_code}: {detalhe}")
             return None
         except (requests.RequestException, ValueError) as erro:
@@ -543,11 +876,35 @@ with st.sidebar:
         Limpar_selecao("analise")
         navegar("analise")
 
-    if st.button("Entrar", key="menu_entrar", width="stretch"):
+    usuario_logado = st.session_state.get("usuario_logado")
+    if isinstance(usuario_logado, dict):
+        with st.expander(f"👤 {usuario_logado['username']}"):
+            st.caption(usuario_logado["email"])
+            st.button(
+                "Sair da conta",
+                key="menu_sair",
+                width="stretch",
+                on_click=encerrar_sessao,
+            )
+        if usuario_administrador():
+            st.divider()
+            st.caption("Administração")
+            if st.button(
+                "Cadastrar usuário", key="menu_cadastrar_usuario", width="stretch"
+            ):
+                navegar("cadastrar_usuario")
+            if st.button(
+                "Alterar usuário", key="menu_atualizar_usuario", width="stretch"
+            ):
+                st.session_state.pop("usuario_em_edicao", None)
+                navegar("atualizar_usuario")
+            if st.button(
+                "Excluir usuário", key="menu_excluir_usuario", width="stretch"
+            ):
+                st.session_state.pop("usuario_para_excluir", None)
+                navegar("excluir_usuario")
+    elif st.button("👤 Entrar", key="menu_entrar", width="stretch"):
         navegar("login")
-
-    if st.button("Sobre", key="menu_sobre", width="stretch"):
-        navegar("sobre")
 
 
 # ============================================================
@@ -694,28 +1051,14 @@ def renderizarTelaDeAnalise():
 if st.session_state.pagina == "analise":
     renderizarTelaDeAnalise()
 
-elif st.session_state.pagina == "sobre":
-    renderizar_cabecalho(
-        "Sobre o Sistema",
-        "Este é um sistema de apoio à análise de radiografias do punho utilizando inteligência artificial.",
-    )
-
-    with st.container(border=True):
-        st.info(
-            "O sistema tem como objetivo auxiliar o profissional durante "
-            "a análise da radiografia. O resultado apresentado pela IA "
-            "não substitui a avaliação de um profissional médico."
-        )
-
-    if st.button("← Voltar", key="voltar_sobre"):
-        navegar("inicio")
-
 elif st.session_state.pagina == "login":
     renderizar_cabecalho("Login", "Acesso ao sistema.")
+    if st.session_state.pop("login_required", False):
+        st.warning("Faça login para continuar. Sua sessão pode ter expirado.")
 
     with st.container(border=True):
         with st.form("login_form"):
-            usuario = st.text_input("Usuário")
+            usuario = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
 
             entrar = st.form_submit_button(
@@ -724,10 +1067,25 @@ elif st.session_state.pagina == "login":
             )
 
             if entrar:
-                st.info(
-                    "Tela de login preparada para integração com "
-                    "o sistema de autenticação."
-                )
+                realizarLogin(usuario, senha)
 
     if st.button("← Voltar", key="voltar_login"):
         navegar("inicio")
+
+# ============================================================
+#                       TELA DE CADASTRO DE USUARIO
+# ============================================================
+elif st.session_state.pagina == "cadastrar_usuario":
+    renderizar_tela_cadastro_usuario()
+
+# ============================================================
+#                       TELA DE ATUALIZACAO DE USUARIO
+# ============================================================
+elif st.session_state.pagina == "atualizar_usuario":
+    renderizar_tela_atualizar_usuario()
+
+# ============================================================
+#                       TELA DE EXCLUSAO DE USUARIO
+# ============================================================
+elif st.session_state.pagina == "excluir_usuario":
+    renderizar_tela_excluir_usuario()

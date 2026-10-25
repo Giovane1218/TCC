@@ -1,3 +1,4 @@
+from database.migrations import run_migrations_async
 from core import custom_openapi
 import uvicorn
 from contextlib import asynccontextmanager
@@ -10,6 +11,7 @@ from repositories.user_repository import initialize_authentication
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await run_migrations_async()
     await initialize_authentication()
     yield
 

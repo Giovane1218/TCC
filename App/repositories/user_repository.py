@@ -55,7 +55,7 @@ async def initialize_authentication() -> None:
 
 
 async def add_user(db: AsyncSession, usuario: UsuarioModel) -> UsuarioModel:
-    await db.add(usuario)
+    db.add(usuario)
     await db.flush()
     return usuario
 

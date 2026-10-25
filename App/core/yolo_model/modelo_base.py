@@ -6,7 +6,6 @@ import base64
 import binascii
 from typing import List
 import cv2
-import numpy as np
 from PIL import Image
 import io
 from core.exceptions.exceptions_type import PredictError

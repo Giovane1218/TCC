@@ -14,7 +14,7 @@ database_url = URL.create(
     username=os.getenv("MYSQL_USER"),
     password=os.getenv("MYSQL_PASSWORD"),
     host=os.getenv("MYSQL_HOST", "127.0.0.1"),
-    port=int(os.getenv("MYSQL_PORT", "3306")),
+    port=int(os.getenv("MYSQL_PORT", "3307")),
     database=os.getenv("MYSQL_DATABASE"),
 )
 

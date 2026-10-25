@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from core import carregar_modelo, get_current_user
 from usecases.PredictUseCase.Predict import Execute
 
-# router = APIRouter(prefix="/predict", tags=["Predição"], dependencies=[Depends(get_current_user)])
-router = APIRouter(prefix="/predict", tags=["Predição"])
+router = APIRouter(
+    prefix="/predict", tags=["Predição"], dependencies=[Depends(get_current_user)]
+)
 model = carregar_modelo()
 
 

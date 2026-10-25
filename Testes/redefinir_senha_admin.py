@@ -4,9 +4,9 @@ from getpass import getpass
 
 from sqlalchemy import select
 
-from database.data_base import SessionLocal
-from models.user_model import UsuarioModel
-from services.password_services import hash_password
+from App.database.data_base import SessionLocal
+from App.models.user_model import UsuarioModel
+from App.services.password_services import hash_password
 
 
 async def redefinir_senha() -> None:

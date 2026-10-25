@@ -19,7 +19,7 @@ from App.models.user_model import (
 
 config = context.config
 url_for_alembic = (
-    database_url.render_as_string(hide_password=False)
+    database_url.render_as_string(hide_password=False).replace("%", "%%")
     if hasattr(database_url, "render_as_string")
     else str(database_url)
 )

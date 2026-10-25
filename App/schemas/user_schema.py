@@ -27,6 +27,18 @@ class UsuarioResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UsuarioDetalhadoResponse(BaseModel):
+    username: str
+    email: EmailStr
+    registro_profissional: str
+    cargo: str
+    uf_registro: str
+    ativo: bool
+    nivel_acesso: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
