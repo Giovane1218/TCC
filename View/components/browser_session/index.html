@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Browser session</title>
+  </head>
+  <body>
+    <script>
+      const STORAGE_KEY = "analise-punho.browser-session.v1";
+      let lastValueSent;
+
+      function sendMessageToStreamlit(type, data = {}) {
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type, ...data },
+          "*"
+        );
+      }
+
+      function sendValueToStreamlit(value) {
+        const serializedValue = JSON.stringify(value);
+        if (serializedValue === lastValueSent) return;
+
+        lastValueSent = serializedValue;
+        sendMessageToStreamlit("streamlit:setComponentValue", {
+          value,
+          dataType: "json",
+        });
+      }
+
+      function readSession() {
+        try {
+          const value = window.sessionStorage.getItem(STORAGE_KEY);
+          return value ? JSON.parse(value) : null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function handleRender(event) {
+        if (!event.data || event.data.type !== "streamlit:render") return;
+
+        const args = event.data.args || {};
+        try {
+          if (args.clear) {
+            window.sessionStorage.removeItem(STORAGE_KEY);
+          } else if (args.accessToken) {
+            window.sessionStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({ access_token: args.accessToken })
+            );
+          }
+        } catch (_) {
+          // O navegador pode bloquear o armazenamento em contexto restrito.
+        }
+
+        sendValueToStreamlit(readSession());
+        sendMessageToStreamlit("streamlit:setFrameHeight", { height: 0 });
+      }
+
+      window.addEventListener("message", handleRender);
+      sendMessageToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+      sendValueToStreamlit(readSession());
+    </script>
+  </body>
+</html>

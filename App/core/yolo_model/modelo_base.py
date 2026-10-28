@@ -8,7 +8,7 @@ from typing import List
 import cv2
 from PIL import Image
 import io
-from core.exceptions.exceptions_type import PredictError
+from core.exceptions.exceptions_type import PredictError, ValorInvalidoError
 
 
 def carregar_modelo(path: str | None = None) -> YOLO:
@@ -24,7 +24,7 @@ def decodificar_base64(valor: str) -> bytes:
     try:
         return base64.b64decode(valor, validate=True)
     except (binascii.Error, ValueError, TypeError) as erro:
-        raise ValueError("Base64 inválido") from erro
+        raise ValorInvalidoError from erro
 
 
 class ImagemRequest(BaseModel):
@@ -45,10 +45,10 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
         model = carregar_modelo()
     """Processa a imagem usando o modelo YOLO treinado."""
     if not content:
-        raise ValueError("Imagem vazia")
+        raise ValorInvalidoError
 
     if model is None:
-        raise ValueError("O modelo YOLO não está carregado no servidor.")
+        raise RuntimeError("O modelo YOLO não está carregado no servidor.")
 
     # 1. Converte bytes para imagem PIL / array NumPy RGB
     pil_image = Image.open(io.BytesIO(content)).convert("RGB")
@@ -58,7 +58,7 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
     results = model.predict(
         source=img_np,
         imgsz=1024,  # Resolução usada no treinamento
-        conf=0.25,  # Threshold de confiança
+        conf=0.40,  # Threshold de confiança
         verbose=False,
     )[0]
 
@@ -119,9 +119,8 @@ def analisar_conteudo(content: bytes, model: YOLO = None) -> dict:
 
     return {
         "sucesso": True,
-        "predicao": predicao_str,
+        "predict": predicao_str,
         "total_fraturas": qtd_fraturas,
-        "detecções": detections,
-        "imagem_processada": base64.b64encode(buffer.tobytes()).decode("utf-8"),
-        "detalhes": {"tamanho_bytes": len(content)},
+        "detections": detections,
+        "final_img": base64.b64encode(buffer.tobytes()).decode("utf-8"),
     }

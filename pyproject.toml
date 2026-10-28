@@ -1,6 +1,6 @@
 [project]
 name = "projeto-tcc"
-version = "2.1.1"
+version = "2.2.0"
 requires-python = ">=3.14"
 dependencies = []
 
@@ -27,6 +27,7 @@ api = [
     "torchvision==0.29.1",
     "ultralytics==8.4.183",
     "uvicorn[standard]==0.54.0",
+    "pi-heif>=1.4.0",
 ]
 
 # Use wheels CPU-only for the API container.

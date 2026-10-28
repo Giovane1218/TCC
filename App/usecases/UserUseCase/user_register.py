@@ -1,13 +1,14 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from schemas.user_schema import UsuarioRequest
 from repositories.user_repository import add_user
 from core.config import USER_LEVEL
 from models.user_model import UsuarioModel
 from services.password_services import hash_password
 
 
-async def ExecuteCreateUser(db: AsyncSession, dados: UsuarioModel) -> UsuarioModel:
+async def ExecuteCreateUser(db: AsyncSession, dados: UsuarioRequest) -> UsuarioModel:
     if len(dados.password) < 12:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

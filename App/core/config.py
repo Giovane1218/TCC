@@ -5,6 +5,8 @@ from fastapi.openapi.utils import get_openapi
 # ====Constantes de nivel de acesso====
 ADMIN_LEVEL = 1
 USER_LEVEL = 2
+MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+MAX_IMAGES = 20
 
 
 def custom_openapi(app):

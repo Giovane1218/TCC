@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.user_schema import LoginRequest, TokenResponse
+from schemas.login_schema import LoginRequest, TokenResponse
 from database.data_base import get_db
 from usecases.AuthUseCase.login import ExecuteLogin
 

@@ -1,12 +1,14 @@
-import datetime
-
-import streamlit as st
-import requests
 import base64
+import datetime
 import hashlib
 import html
+import json
 import os
 from pathlib import Path
+
+import requests
+import streamlit as st
+import streamlit.components.v1 as components
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
@@ -26,14 +28,34 @@ if not API_BASE_URL:
     api_base, separador, _ = API_URL.rpartition("/predict/predictAI")
     API_BASE_URL = api_base if separador else API_URL.rsplit("/", 1)[0]
 API_BASE_URL = API_BASE_URL.rstrip("/")
+REPORT_ENDPOINT = os.getenv("REPORT_ENDPOINT", "/reports/reportpdf")
 REQUEST_TIMEOUT = 600
 MAX_IMG = 20
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+PAGINAS_VALIDAS = frozenset(
+    {
+        "inicio",
+        "login",
+        "analise",
+        "cadastrar_usuario",
+        "atualizar_usuario",
+        "excluir_usuario",
+    }
+)
+CHAVE_PARAMETRO_PAGINA = "pagina"
+CHAVE_PARAMETRO_MODO_ANALISE = "modo"
+PERSISTIR_SESSAO_NAVEGADOR = os.getenv(
+    "PERSISTIR_SESSAO_NAVEGADOR", "true"
+).strip().lower() not in {"0", "false", "no", "off"}
 HERO_IMAGE = ASSETS_DIR / "img_raioX_mao_completa.png"
 PATIENT_ICON = base64.b64encode(
     (ASSETS_DIR / "registo-medico.png").read_bytes()
 ).decode("ascii")
 XRAY_ICON = base64.b64encode((ASSETS_DIR / "corpo.png").read_bytes()).decode("ascii")
+BROWSER_SESSION = components.declare_component(
+    "browser_session",
+    path=ASSETS_DIR.parent / "components" / "browser_session",
+)
 
 
 # ============================================================
@@ -41,306 +63,104 @@ XRAY_ICON = base64.b64encode((ASSETS_DIR / "corpo.png").read_bytes()).decode("as
 # ============================================================
 
 st.markdown(
-    """
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;800&display=swap');
-
-        html, body, [class*="css"] {
-            font-family: 'Lato', Arial, sans-serif;
-        }
-
-        [data-testid="stHeader"] {
-            background: linear-gradient(135deg, #247fb5 0%, #1760d4 100%);
-        }
-
-        [data-testid="stHeader"] button,
-        [data-testid="stHeader"] button svg {
-            color: #ffffff;
-            fill: #ffffff;
-        }
-
-        html[data-theme="dark"] [data-testid="stHeader"] {
-            background: linear-gradient(135deg, #16477d 0%, #0c2f5f 100%);
-        }
-
-        .stApp {
-            background: var(--background-color);
-        }
-
-        .block-container {
-            max-width: 1220px !important;
-            padding-top: 2rem !important;
-            padding-bottom: 3rem !important;
-        }
-
-        .hero-shell {
-            padding: 1rem 0 2rem 0;
-        }
-
-        .st-key-home_hero_image {
-            display: flex;
-            justify-content: flex-end;
-            width: calc(100% + max(0px, 50vw - 610px) + 1.5rem);
-            margin-right: calc(0px - max(0px, 50vw - 610px) - 1.5rem);
-        }
-
-        @media (max-width: 768px) {
-            .st-key-home_hero_image {
-                width: 100%;
-                margin-right: 0;
-            }
-        }
-
-        .eyebrow {
-            color: #247fd5;
-            font-size: 13px;
-            font-weight: 800;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .hero-title {
-            color: var(--text-color);
-            font-size: clamp(2.5rem, 5.2vw, 4.3rem);
-            line-height: 0.95;
-            font-weight: 800;
-            letter-spacing: -2px;
-            margin: 0;
-            max-width: 760px;
-        }
-
-        .hero-title span {
-            color: #247fd5;
-        }
-
-        .hero-description {
-            color: var(--text-color);
-            opacity: 0.75;
-            font-size: 1.1rem;
-            line-height: 1.6;
-            max-width: 700px;
-            margin-top: 1.2rem;
-            margin-bottom: 0;
-        }
-
-        .card-shell {
-            min-height: 250px;
-            padding: 1.6rem 1.4rem;
-            border-radius: 18px;
-            border: 1px solid rgba(127, 127, 127, 0.25);
-            background: var(--secondary-background-color);
-            box-shadow: 0 10px 24px rgba(20, 35, 61, 0.04);
-        }
-
-        .card-shell.secondary {
-            background: var(--background-color);
-        }
-
-        .card-icon {
-            width: 3rem;
-            height: 3rem;
-            margin-bottom: 0.7rem;
-        }
-
-        .card-icon img {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        .card-shell h3 {
-            color: var(--text-color);
-            font-size: 1.6rem;
-            font-weight: 800;
-            line-height: 1.2;
-            margin: 0 0 0.7rem 0;
-        }
-
-        .card-shell p {
-            color: var(--text-color);
-            opacity: 0.75;
-            font-size: 1rem;
-            line-height: 1.55;
-            margin: 0;
-        }
-
-        .disclaimer {
-            margin-top: 2.8rem;
-            padding-top: 1.8rem;
-            border-top: 1px solid rgba(127, 127, 127, 0.25);
-            color: var(--text-color);
-            opacity: 0.75;
-            font-size: 0.92rem;
-            text-align: center;
-        }
-
-        .page-title {
-            color: var(--text-color);
-            font-size: 2.2rem;
-            font-weight: 800;
-            letter-spacing: -1px;
-            margin-bottom: 0.5rem;
-        }
-
-        .analysis-page-title {
-            padding-top: 1.5rem;
-        }
-
-        .page-description {
-            color: var(--text-color);
-            opacity: 0.75;
-            font-size: 1.05rem;
-            line-height: 1.5;
-            margin-bottom: 1.5rem;
-        }
-
-        div.stButton > button {
-            width: 100%;
-            border-radius: 12px;
-            min-height: 48px;
-            font-family: 'Lato', Arial, sans-serif;
-            font-size: 1rem;
-            font-weight: 700;
-            border: 1px solid #247fd5;
-            color: #ffffff;
-            background: linear-gradient(135deg, #247fb5 0%, #1760d4 100%);
-            margin-top: 0.9rem;
-        }
-
-        div.stButton > button:hover {
-            border-color: #1760d4;
-            color: #ffffff;
-            box-shadow: 0 10px 24px rgba(36, 127, 213, 0.18);
-        }
-
-        div.st-key-limpar_analise button {
-            width: auto;
-            min-height: 36px;
-            padding: 0.35rem 0.8rem;
-            color: var(--text-color);
-            background: var(--secondary-background-color);
-            border-color: rgba(127, 127, 127, 0.35);
-            font-size: 0.9rem;
-            box-shadow: none;
-        }
-
-        div.st-key-limpar_analise button:hover {
-            color: #ffffff;
-            background: #c62828;
-            border-color: #c62828;
-            box-shadow: 0 4px 12px rgba(198, 40, 40, 0.2);
-        }
-
-
-        html[data-theme="dark"] div.stButton > button {
-            border-color: #16477d;
-            background: linear-gradient(135deg, #16477d 0%, #0c2f5f 100%);
-        }
-
-        html[data-theme="dark"] div.stButton > button:hover {
-            border-color: #0c2f5f;
-            background: linear-gradient(135deg, #16477d 0%, #0c2f5f 100%);
-            box-shadow: 0 10px 24px rgba(12, 47, 95, 0.3);
-        }
-
-        [data-testid="stFileUploader"] {
-            border-radius: 12px;
-            border: 1px solid rgba(127, 127, 127, 0.25);
-            background: var(--secondary-background-color);
-        }
-
-        .analysis-grid {
-            display: grid;
-            gap: 1.1rem;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            margin-top: 1rem;
-        }
-
-        .analysis-actions {
-            margin-top: 1.2rem;
-            display: flex;
-            gap: 0.8rem;
-            align-items: center;
-        }
-
-        .analysis-actions > div {
-            flex: 1;
-        }
-
-        .preview-box {
-            background: var(--secondary-background-color);
-            border: 1px solid rgba(127, 127, 127, 0.25);
-            border-radius: 16px;
-            padding: 1rem;
-            margin-top: 0.8rem;
-        }
-
-        .result-box {
-            background: var(--secondary-background-color);
-            border: 1px solid rgba(127, 127, 127, 0.25);
-            border-radius: 14px;
-            padding: 25px;
-            margin-top: 20px;
-        }
-    </style>
-    """,
+    f"<style>{(Path(__file__).resolve().parent / 'styles.css').read_text(encoding='utf-8')}</style>",
     unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# ESTADO DA APLICAÇÃO
+# ESTADO, MENSAGENS E NAVEGAÇÃO
 # ============================================================
+def inicializar_estado():
+    valores_iniciais = {
+        "pagina": "inicio",
+        "access_token": None,
+        "usuario_logado": None,
+        "incluir_dados_paciente": False,
+    }
+    for chave, valor in valores_iniciais.items():
+        if chave not in st.session_state:
+            st.session_state[chave] = valor
 
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "inicio"
-if "access_token" not in st.session_state:
-    st.session_state.access_token = None
-if "usuario_logado" not in st.session_state:
-    st.session_state.usuario_logado = None
+
+def _atualizar_url_da_pagina(pagina, incluir_dados_paciente=None):
+    if st.query_params.get(CHAVE_PARAMETRO_PAGINA) != pagina:
+        st.query_params[CHAVE_PARAMETRO_PAGINA] = pagina
+
+    if pagina == "analise":
+        modo = "completa" if incluir_dados_paciente else "rapida"
+        if st.query_params.get(CHAVE_PARAMETRO_MODO_ANALISE) != modo:
+            st.query_params[CHAVE_PARAMETRO_MODO_ANALISE] = modo
+    elif CHAVE_PARAMETRO_MODO_ANALISE in st.query_params:
+        del st.query_params[CHAVE_PARAMETRO_MODO_ANALISE]
 
 
-# ============================================================
-# FUNÇÕES
-# ============================================================
-def cadastrarPaciente():
-    col1, col2 = st.columns(2)
+def sincronizar_navegacao_com_url():
+    pagina_url = st.query_params.get(CHAVE_PARAMETRO_PAGINA)
+    pagina_atual = (
+        pagina_url if pagina_url in PAGINAS_VALIDAS else st.session_state.pagina
+    )
+    if pagina_atual not in PAGINAS_VALIDAS:
+        pagina_atual = "inicio"
 
-    with col1:
-        nome = st.text_input("Nome do paciente:")
-        sexo = st.selectbox(
-            "Sexo:",
-            ["Não informado", "Feminino", "Masculino"],
-            index=None,
-            placeholder="Selecionar--",
-        )
-        data_ncmto = st.date_input(
-            label="Data de nascimento:",
-            value="today",
-            min_value=datetime.date(1900, 1, 1),
-            max_value="today",
-            format="DD/MM/YYYY",
-        )
-
-    with col2:
-        idade = st.number_input("Idade:", min_value=0, max_value=120, value=0)
-        lado = st.selectbox(
-            "Lado analisado:",
-            ["Direito", "Esquerdo", "Ambos"],
-            index=None,
-            placeholder="Selecionar--",
+    st.session_state.pagina = pagina_atual
+    if pagina_atual == "analise":
+        st.session_state.incluir_dados_paciente = (
+            st.query_params.get(CHAVE_PARAMETRO_MODO_ANALISE) == "completa"
         )
 
-    return nome, idade, sexo, lado, data_ncmto
+    _atualizar_url_da_pagina(
+        pagina_atual,
+        st.session_state.incluir_dados_paciente,
+    )
 
 
-def navegar(pagina):
+def navegar(pagina, incluir_dados_paciente=None):
+    if pagina not in PAGINAS_VALIDAS:
+        raise ValueError(f"Página inválida: {pagina}")
+
+    if incluir_dados_paciente is not None:
+        st.session_state.incluir_dados_paciente = incluir_dados_paciente
+
     st.session_state.pagina = pagina
+    _atualizar_url_da_pagina(
+        pagina,
+        st.session_state.incluir_dados_paciente,
+    )
     st.rerun()
 
 
+def definir_mensagem(tipo, texto):
+    st.session_state.mensagem_pendente = (tipo, texto)
+
+
+def exibir_mensagem_pendente():
+    mensagem = st.session_state.pop("mensagem_pendente", None)
+    if mensagem is None:
+        return
+
+    tipo, texto = mensagem
+    getattr(st, tipo)(texto)
+
+
+def limpar_autenticacao():
+    st.session_state.access_token = None
+    st.session_state.usuario_logado = None
+    st.session_state.limpar_sessao_navegador = True
+
+
+def redirecionar_por_sessao_expirada():
+    limpar_autenticacao()
+    definir_mensagem(
+        "warning",
+        "Faça login para continuar. Sua sessão pode ter expirado.",
+    )
+    navegar("login")
+
+
+# ============================================================
+# APOIO DE INTERFACE
+# ============================================================
 def renderizar_cabecalho(titulo, descricao, classe_titulo=""):
     st.markdown(
         f'<div class="page-title {classe_titulo}">{html.escape(titulo)}</div>'
@@ -367,21 +187,28 @@ def renderizar_card_inicio(
     )
 
 
-def Assinatura_arquivos(arquivos):
+def assinatura_arquivos(arquivos):
     return tuple(
         (arquivo.name, hashlib.sha256(arquivo.getvalue()).hexdigest())
         for arquivo in arquivos
     )
 
 
-def Limpar_selecao(prefixo):
-    st.session_state[f"{prefixo}_upload_version"] = (
-        st.session_state.get(f"{prefixo}_upload_version", 0) + 1
-    )
+def limpar_resultados_analise(prefixo):
     st.session_state[f"{prefixo}_resultados"] = None
     st.session_state[f"{prefixo}_assinatura"] = None
 
 
+def limpar_selecao(prefixo):
+    st.session_state[f"{prefixo}_upload_version"] = (
+        st.session_state.get(f"{prefixo}_upload_version", 0) + 1
+    )
+    limpar_resultados_analise(prefixo)
+
+
+# ============================================================
+# CLIENTE HTTP E AUTENTICAÇÃO
+# ============================================================
 def detalhe_erro_api(response):
     try:
         payload = response.json()
@@ -394,7 +221,15 @@ def detalhe_erro_api(response):
     return str(payload)
 
 
-def requisitar_api(metodo, endpoint, token=None, timeout=30, **kwargs):
+def requisitar_api(
+    metodo,
+    endpoint,
+    token=None,
+    timeout=30,
+    redirecionar_ao_expirar=False,
+    exibir_erros=True,
+    **kwargs,
+):
     headers = kwargs.pop("headers", {})
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -410,33 +245,75 @@ def requisitar_api(metodo, endpoint, token=None, timeout=30, **kwargs):
         response.raise_for_status()
         return response
     except requests.Timeout:
-        st.error("A API demorou além do limite para responder.")
+        if exibir_erros:
+            st.error("A API demorou além do limite para responder.")
     except requests.ConnectionError:
-        st.error("Não foi possível conectar à API.")
+        if exibir_erros:
+            st.error("Não foi possível conectar à API.")
     except requests.HTTPError:
-        st.error(f"Erro HTTP {response.status_code}: {detalhe_erro_api(response)}")
+        if response.status_code == 401 and redirecionar_ao_expirar:
+            redirecionar_por_sessao_expirada()
+        if exibir_erros:
+            st.error(f"Erro HTTP {response.status_code}: {detalhe_erro_api(response)}")
     except requests.RequestException as erro:
-        st.error(f"Falha ao consultar a API: {erro}")
+        if exibir_erros:
+            st.error(f"Falha ao consultar a API: {erro}")
     return None
 
 
-def carregar_usuario(token):
-    response = requisitar_api("GET", "/user/me", token=token)
+def carregar_usuario(token, exibir_erros=True):
+    response = requisitar_api(
+        "GET",
+        "/user/me",
+        token=token,
+        exibir_erros=exibir_erros,
+    )
     if response is None:
         return None
     try:
         usuario = response.json()
     except ValueError:
-        st.error("A API retornou os dados do usuário em formato inválido.")
+        if exibir_erros:
+            st.error("A API retornou os dados do usuário em formato inválido.")
         return None
     campos_obrigatorios = {"username", "email", "nivel_acesso"}
     if not isinstance(usuario, dict) or not campos_obrigatorios.issubset(usuario):
-        st.error("A API retornou os dados do usuário em formato inválido.")
+        if exibir_erros:
+            st.error("A API retornou os dados do usuário em formato inválido.")
         return None
     return usuario
 
 
-def realizarLogin(email, senha):
+def sincronizar_sessao_navegador():
+    if not PERSISTIR_SESSAO_NAVEGADOR:
+        return
+
+    limpar_sessao = st.session_state.pop("limpar_sessao_navegador", False)
+    token_atual = None if limpar_sessao else st.session_state.get("access_token")
+    sessao_salva = BROWSER_SESSION(
+        accessToken=token_atual,
+        clear=limpar_sessao,
+        default=None,
+        key="browser_session",
+    )
+
+    if limpar_sessao or token_atual or not isinstance(sessao_salva, dict):
+        return
+
+    token_salvo = sessao_salva.get("access_token")
+    if not isinstance(token_salvo, str) or not token_salvo:
+        return
+
+    usuario = carregar_usuario(token_salvo, exibir_erros=False)
+    if usuario is None:
+        st.session_state.limpar_sessao_navegador = True
+        st.rerun()
+
+    st.session_state.access_token = token_salvo
+    st.session_state.usuario_logado = usuario
+
+
+def realizar_login(email, senha):
     if not email or not senha:
         st.error("Digite o e-mail e a senha.")
         return
@@ -466,17 +343,13 @@ def realizarLogin(email, senha):
 
     st.session_state.access_token = token
     st.session_state.usuario_logado = usuario
-    st.session_state.login_required = False
-    st.session_state.pagina = "inicio"
-    st.success(f"Bem-vindo(a), {usuario['username']}!")
-    st.rerun()
+    definir_mensagem("success", f"Bem-vindo(a), {usuario['username']}!")
+    navegar("inicio")
 
 
 def encerrar_sessao():
-    st.session_state.access_token = None
-    st.session_state.usuario_logado = None
-    st.session_state.pagina = "inicio"
-    st.rerun()
+    limpar_autenticacao()
+    navegar("inicio")
 
 
 def buscar_usuario_por_email(email):
@@ -484,6 +357,7 @@ def buscar_usuario_por_email(email):
         "GET",
         "/user/userByEmail",
         token=st.session_state.access_token,
+        redirecionar_ao_expirar=True,
         params={"email": email},
     )
     if response is None:
@@ -504,6 +378,9 @@ def usuario_administrador():
     return isinstance(usuario, dict) and usuario.get("nivel_acesso") == 1
 
 
+# ============================================================
+# APOIO DE USUÁRIOS
+# ============================================================
 def renderizar_formulario_usuario(modo, usuario=None, prefixo=None):
     usuario = usuario or {}
     prefixo = prefixo or modo
@@ -573,139 +450,47 @@ def renderizar_formulario_usuario(modo, usuario=None, prefixo=None):
 
 
 # ============================================================
-#                       TELA DE CADASTRO DE USUARIO
+# APOIO À ANÁLISE E AO RELATÓRIO
 # ============================================================
-def renderizar_tela_cadastro_usuario():
-    if not usuario_administrador():
-        st.error("Somente administradores podem cadastrar usuários.")
-        return
+def coletar_dados_paciente():
+    coluna1, coluna2 = st.columns(2)
 
-    renderizar_cabecalho(
-        "Cadastrar usuário",
-        "Preencha os dados para criar uma nova conta de acesso.",
-    )
-    dados = renderizar_formulario_usuario("registro")
-    if dados is None:
-        return
+    with coluna1:
+        nome = st.text_input("Nome do paciente:")
 
-    response = requisitar_api(
-        "POST",
-        "/user/userRegister",
-        token=st.session_state.access_token,
-        json=dados,
-    )
-    if response is not None:
-        st.success("Usuário cadastrado com sucesso.")
-
-
-# ============================================================
-#                       TELA DE ATUALIZACAO DE USUARIO
-# ============================================================
-def renderizar_tela_atualizar_usuario():
-    if not usuario_administrador():
-        st.error("Somente administradores podem alterar usuários.")
-        return
-
-    renderizar_cabecalho(
-        "Alterar usuário",
-        "Busque a conta que deseja alterar pelo e-mail.",
-    )
-    with st.form("buscar_usuario_atualizacao"):
-        email_busca = st.text_input("E-mail do usuário")
-        buscar = st.form_submit_button("Buscar usuário", width="stretch")
-
-    if buscar:
-        usuario = buscar_usuario_por_email(email_busca.strip())
-        if usuario is not None:
-            st.session_state.usuario_em_edicao = usuario
-
-    usuario = st.session_state.get("usuario_em_edicao")
-    if not isinstance(usuario, dict):
-        return
-
-    st.info(f"Editando: {usuario.get('username')} ({usuario.get('email')})")
-    chave = hashlib.sha256(usuario["email"].encode("utf-8")).hexdigest()[:12]
-    dados = renderizar_formulario_usuario(
-        "atualizacao",
-        usuario=usuario,
-        prefixo=f"usuario_edicao_{chave}",
-    )
-    if dados is None:
-        return
-
-    email_original = usuario["email"]
-    response = requisitar_api(
-        "PUT",
-        "/user/userUpdate_email",
-        token=st.session_state.access_token,
-        params={"email": email_original},
-        json=dados,
-    )
-    if response is not None:
-        st.session_state.pop("usuario_em_edicao", None)
-        st.success("Usuário atualizado com sucesso.")
-        st.rerun()
-
-
-# ============================================================
-#                       TELA DE EXCLUSAO DE USUARIO
-# ============================================================
-def renderizar_tela_excluir_usuario():
-    if not usuario_administrador():
-        st.error("Somente administradores podem excluir usuários.")
-        return
-
-    renderizar_cabecalho(
-        "Excluir usuário",
-        "Busque a conta que deseja excluir pelo e-mail.",
-    )
-    with st.form("buscar_usuario_exclusao"):
-        email_busca = st.text_input("E-mail do usuário")
-        buscar = st.form_submit_button("Buscar usuário", width="stretch")
-
-    if buscar:
-        usuario = buscar_usuario_por_email(email_busca.strip())
-        if usuario is not None:
-            st.session_state.usuario_para_excluir = usuario
-
-    usuario = st.session_state.get("usuario_para_excluir")
-    if not isinstance(usuario, dict):
-        return
-
-    st.warning(
-        f"Conta selecionada: {usuario.get('username')} ({usuario.get('email')}). "
-        "Esta ação não pode ser desfeita."
-    )
-    chave = hashlib.sha256(usuario["email"].encode("utf-8")).hexdigest()[:12]
-    with st.form(f"confirmar_exclusao_{chave}"):
-        confirmar = st.checkbox(
-            "Confirmo a exclusão desta conta.",
-            key=f"confirmar_exclusao_{chave}",
+        data_nascimento = st.date_input(
+            label="Data de nascimento:",
+            value="today",
+            min_value=datetime.date(1900, 1, 1),
+            max_value="today",
+            format="DD/MM/YYYY",
         )
-        excluir = st.form_submit_button("Excluir usuário", width="stretch")
 
-    if not excluir:
-        return
-    if not confirmar:
-        st.error("Marque a confirmação antes de excluir o usuário.")
-        return
+    with coluna2:
+        sexo = st.selectbox(
+            "Sexo:",
+            ["Não informado", "Feminino", "Masculino"],
+            index=None,
+            placeholder="Selecionar--",
+        )
 
-    email_excluido = usuario["email"]
-    response = requisitar_api(
-        "DELETE",
-        "/user/userDelete_email",
-        token=st.session_state.access_token,
-        params={"email": email_excluido},
-    )
-    if response is not None:
-        st.session_state.pop("usuario_para_excluir", None)
-        if email_excluido == st.session_state.usuario_logado.get("email"):
-            encerrar_sessao()
-        st.success("Usuário excluído com sucesso.")
-        st.rerun()
+        lado_analisado = st.selectbox(
+            "Lado analisado:",
+            ["Direito", "Esquerdo", "Ambos"],
+            index=None,
+            placeholder="Selecionar--",
+        )
+
+    # A idade é calculada pelo serviço de relatório a partir desta data.
+    return {
+        "name": nome.strip(),
+        "sexo": sexo,
+        "ladoAnalisado": lado_analisado,
+        "dataNcmto": data_nascimento.isoformat(),
+    }
 
 
-def Iniciar_analise(arquivos):
+def iniciar_analise(arquivos):
     if not arquivos:
         st.warning("Selecione ao menos uma radiografia antes de iniciar a análise.")
         return None
@@ -750,11 +535,7 @@ def Iniciar_analise(arquivos):
         except requests.HTTPError:
             detalhe = detalhe_erro_api(response)
             if response.status_code == 401:
-                st.session_state.access_token = None
-                st.session_state.usuario_logado = None
-                st.session_state.login_required = True
-                st.session_state.pagina = "login"
-                st.rerun()
+                redirecionar_por_sessao_expirada()
             st.error(f"Erro HTTP {response.status_code}: {detalhe}")
             return None
         except (requests.RequestException, ValueError) as erro:
@@ -769,17 +550,84 @@ def Iniciar_analise(arquivos):
     return resposta
 
 
+def dados_paciente_validos(dados_paciente):
+    campos_obrigatorios = {
+        "name": "nome do paciente",
+        "sexo": "sexo",
+        "ladoAnalisado": "lado analisado",
+        "dataNcmto": "data de nascimento",
+    }
+    ausentes = [
+        nome
+        for campo, nome in campos_obrigatorios.items()
+        if not dados_paciente.get(campo)
+    ]
+    if ausentes:
+        st.warning("Informe " + ", ".join(ausentes) + " antes de gerar o relatório.")
+        return False
+    return True
+
+
+def gerar_relatorio_pdf(dados_paciente, resposta, token):
+    payload = {
+        "pacienteInfo": dados_paciente,
+        "resultadosInfo": resposta,
+    }
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    response = requests.request(
+        "GET",
+        f"{API_BASE_URL}{REPORT_ENDPOINT}",
+        headers=headers,
+        timeout=REQUEST_TIMEOUT,
+        json=payload,
+    )
+    response.raise_for_status()
+
+    pdf = response.content
+    if not pdf or not pdf.startswith(b"%PDF"):
+        raise ValueError("A API não retornou um arquivo PDF válido.")
+    return pdf
+
+
+def renderizar_acao_relatorio(dados_paciente, prefixo):
+    resposta = st.session_state.get(f"{prefixo}_resultados")
+    if not resposta:
+        return
+
+    if not dados_paciente_validos(dados_paciente):
+        return
+
+    token = st.session_state.access_token
+    st.markdown("### Relatório")
+    colunas = st.columns([1, 2, 1])
+    with colunas[1]:
+        st.download_button(
+            "Gerar e baixar relatório PDF",
+            # Deferred generation lets the native download button return the PDF on this click.
+            data=lambda: gerar_relatorio_pdf(
+                dados_paciente,
+                resposta,
+                token,
+            ),
+            file_name="relatorio.pdf",
+            mime="application/pdf",
+            key=f"{prefixo}_gerar_pdf",
+            on_click="ignore",
+            width="stretch",
+        )
+
+
 def renderizar_resultados(arquivos, prefixo):
     resposta = st.session_state.get(f"{prefixo}_resultados")
     assinatura = st.session_state.get(f"{prefixo}_assinatura")
     if resposta is None:
-        return
+        return False
 
-    if assinatura != Assinatura_arquivos(arquivos):
+    if assinatura != assinatura_arquivos(arquivos):
         st.info(
             "A seleção foi alterada. Envie as imagens novamente para atualizar os resultados."
         )
-        return
+        return False
 
     resultados = resposta.get("resultados", [])
     sucessos = resposta.get("sucessos", 0)
@@ -799,12 +647,10 @@ def renderizar_resultados(arquivos, prefixo):
             coluna_imagem, coluna_resultado = st.columns([1.2, 1])
 
             with coluna_imagem:
-                imagem_processada = (
-                    resultado.get("imagem_processada") if resultado else None
-                )
-                if imagem_processada:
+                imagem_final = resultado.get("final_img") if resultado else None
+                if imagem_final:
                     st.image(
-                        base64.b64decode(imagem_processada),
+                        base64.b64decode(imagem_final),
                         caption="Radiografia com as detecções do modelo",
                         width="stretch",
                     )
@@ -834,14 +680,12 @@ def renderizar_resultados(arquivos, prefixo):
                     )
                     continue
 
-                deteccoes = resultado.get("detecções", [])
+                deteccoes = resultado.get("detections", [])
                 total_fraturas = resultado.get("total_fraturas", len(deteccoes))
                 if total_fraturas:
-                    st.error(
-                        resultado.get("predicao", "Indicação de fratura detectada")
-                    )
+                    st.error(resultado.get("predict", "Indicação de fratura detectada"))
                 else:
-                    st.success(resultado.get("predicao", "Sem indicação de fratura"))
+                    st.success(resultado.get("predict", "Sem indicação de fratura"))
 
                 st.write(f"**Quantidade de fraturas:** {total_fraturas}")
                 if deteccoes:
@@ -854,158 +698,87 @@ def renderizar_resultados(arquivos, prefixo):
     if len(resultados) > len(arquivos):
         st.warning("A API retornou resultados adicionais sem imagem correspondente.")
 
-
-# ============================================================
-# NAVEGAÇÃO
-# ============================================================
-
-with st.sidebar:
-    st.title("Menu")
-
-    if st.session_state.pagina != "inicio":
-        if st.button("Início", key="menu_inicio", width="stretch"):
-            navegar("inicio")
-
-    if st.button("Nova Análise", key="menu_nova_analise", width="stretch"):
-        st.session_state.incluir_dados_paciente = True
-        Limpar_selecao("analise")
-        navegar("analise")
-
-    if st.button("Nova Análise Rápida", key="menu_anliserapida", width="stretch"):
-        st.session_state.incluir_dados_paciente = False
-        Limpar_selecao("analise")
-        navegar("analise")
-
-    usuario_logado = st.session_state.get("usuario_logado")
-    if isinstance(usuario_logado, dict):
-        with st.expander(f"👤 {usuario_logado['username']}"):
-            st.caption(usuario_logado["email"])
-            st.button(
-                "Sair da conta",
-                key="menu_sair",
-                width="stretch",
-                on_click=encerrar_sessao,
-            )
-        if usuario_administrador():
-            st.divider()
-            st.caption("Administração")
-            if st.button(
-                "Cadastrar usuário", key="menu_cadastrar_usuario", width="stretch"
-            ):
-                navegar("cadastrar_usuario")
-            if st.button(
-                "Alterar usuário", key="menu_atualizar_usuario", width="stretch"
-            ):
-                st.session_state.pop("usuario_em_edicao", None)
-                navegar("atualizar_usuario")
-            if st.button(
-                "Excluir usuário", key="menu_excluir_usuario", width="stretch"
-            ):
-                st.session_state.pop("usuario_para_excluir", None)
-                navegar("excluir_usuario")
-    elif st.button("👤 Entrar", key="menu_entrar", width="stretch"):
-        navegar("login")
+    return True
 
 
 # ============================================================
-# PÁGINA INICIAL
+# TELAS
 # ============================================================
-def rederizarTelaInicial():
-    if st.session_state.pagina == "inicio":
+def renderizar_tela_inicio():
+    hero_texto, hero_imagem = st.columns(
+        [1.2, 1], gap="large", vertical_alignment="center"
+    )
 
-        hero_text, hero_image = st.columns(
-            [1.2, 1], gap="large", vertical_alignment="center"
-        )
-
-        with hero_text:
-            st.markdown(
-                """
-                <div class="hero-shell">
-                    <h1 class="hero-title">
-                        Análise de fraturas<br>
-                        <span>no punho</span> com IA
-                    </h1>
-                    <p class="hero-description">
-                        Um sistema de apoio que utiliza inteligência artificial
-                        para auxiliar na análise de radiografias do punho.
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with hero_image:
-            with st.container(key="home_hero_image"):
-                st.image(HERO_IMAGE, width="stretch")
-
-        col1, col2 = st.columns(2, gap="large")
-
-        with col1:
-            renderizar_card_inicio(
-                "Nova análise com dados do paciente",
-                "Informe os dados do paciente e gere um relatório com o resultado.",
-                PATIENT_ICON,
-                "Registo Médico",
-            )
-
-            if st.button(
-                "Nova Análise →",
-                key="nova_analise",
-                width="stretch",
-            ):
-                st.session_state.incluir_dados_paciente = True
-                Limpar_selecao("analise")
-                st.session_state.pagina = "analise"
-                st.rerun()
-
-        with col2:
-            renderizar_card_inicio(
-                "Análise rápida",
-                "Envie uma radiografia do punho e obtenha o resultado rapidamente, sem informar os dados do paciente.",
-                XRAY_ICON,
-                "Corpo",
-                secundario=True,
-            )
-
-            if st.button(
-                "Nova Análise Rápida →",
-                key="analise_rapida",
-                width="stretch",
-            ):
-                st.session_state.incluir_dados_paciente = False
-                Limpar_selecao("analise")
-                navegar("analise")
-
+    with hero_texto:
         st.markdown(
             """
-            <div class="disclaimer">
-                Este sistema é apenas um apoio à análise radiológica e não substitui a avaliação de um profissional médico.
+            <div class="hero-shell">
+                <h1 class="hero-title">
+                    Análise de fraturas<br>
+                    <span>no punho</span> com IA
+                </h1>
+                <p class="hero-description">
+                    Um sistema de apoio que utiliza inteligência artificial
+                    para auxiliar na análise de radiografias do punho.
+                </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+    with hero_imagem:
+        with st.container(key="home_hero_image"):
+            st.image(HERO_IMAGE, width="stretch")
 
-rederizarTelaInicial()
+    coluna_completa, coluna_rapida = st.columns(2, gap="large")
+    with coluna_completa:
+        renderizar_card_inicio(
+            "Nova análise com dados do paciente",
+            "Informe os dados do paciente e gere um relatório com o resultado.",
+            PATIENT_ICON,
+            "Registro médico",
+        )
+        if st.button("Nova Análise →", key="nova_analise", width="stretch"):
+            limpar_selecao("analise")
+            navegar("analise", incluir_dados_paciente=True)
+
+    with coluna_rapida:
+        renderizar_card_inicio(
+            "Análise rápida",
+            "Envie uma radiografia do punho e obtenha o resultado rapidamente, sem informar os dados do paciente.",
+            XRAY_ICON,
+            "Radiografia",
+            secundario=True,
+        )
+        if st.button(
+            "Nova Análise Rápida →",
+            key="analise_rapida",
+            width="stretch",
+        ):
+            limpar_selecao("analise")
+            navegar("analise", incluir_dados_paciente=False)
+
+    st.markdown(
+        """
+        <div class="disclaimer">
+            Este sistema é apenas um apoio à análise radiológica e não substitui a avaliação de um profissional médico.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
-# ============================================================
-#                       TELA DE ANÁLISE
-# ============================================================
-def renderizarTelaDeAnalise():
-    incluir_dados_paciente = st.session_state.get("incluir_dados_paciente", False)
+def renderizar_tela_analise():
+    incluir_dados_paciente = st.session_state.incluir_dados_paciente
     titulo = "Análise Completa" if incluir_dados_paciente else "Análise rápida"
     descricao = (
         "Informe os dados do paciente e envie até 20 radiografias para análise."
         if incluir_dados_paciente
         else "Envie até 20 radiografias para análise."
     )
-
     renderizar_cabecalho(titulo, descricao, "analysis-page-title")
 
-    if incluir_dados_paciente:
-        cadastrarPaciente()
-
+    dados_paciente = coletar_dados_paciente() if incluir_dados_paciente else None
     prefixo = "analise"
     versao_upload = st.session_state.get(f"{prefixo}_upload_version", 0)
     arquivos = st.file_uploader(
@@ -1018,74 +791,256 @@ def renderizarTelaDeAnalise():
     if arquivos:
         st.caption(f"{len(arquivos)} imagens selecionadas")
         colunas = st.columns(6)
-        for i, file in enumerate(arquivos):
-            with colunas[i % 6]:
-                st.image(file.getvalue(), caption=file.name, width=100)
+        for indice, arquivo in enumerate(arquivos):
+            with colunas[indice % 6]:
+                st.image(arquivo.getvalue(), caption=arquivo.name, width=100)
 
     st.button(
         "Limpar seleção",
         key="limpar_analise",
-        on_click=Limpar_selecao,
+        on_click=limpar_selecao,
         args=(prefixo,),
     )
 
-    if st.button(
-        "Iniciar análises",
-        key="enviar_analise",
-        width="stretch",
-    ):
-        st.session_state[f"{prefixo}_resultados"] = None
-        st.session_state[f"{prefixo}_assinatura"] = None
-        resposta = Iniciar_analise(arquivos)
+    if st.button("Iniciar análises", key="enviar_analise", width="stretch"):
+        limpar_resultados_analise(prefixo)
+        resposta = iniciar_analise(arquivos)
         if resposta is not None:
             st.session_state[f"{prefixo}_resultados"] = resposta
-            st.session_state[f"{prefixo}_assinatura"] = Assinatura_arquivos(arquivos)
+            st.session_state[f"{prefixo}_assinatura"] = assinatura_arquivos(arquivos)
             st.rerun()
 
-    renderizar_resultados(arquivos or [], prefixo)
+    resultados_atuais = renderizar_resultados(arquivos or [], prefixo)
+    if incluir_dados_paciente and resultados_atuais:
+        renderizar_acao_relatorio(dados_paciente, prefixo)
 
+    st.divider()
     if st.button("← Voltar ao início", key="voltar_analise"):
         navegar("inicio")
 
 
-if st.session_state.pagina == "analise":
-    renderizarTelaDeAnalise()
-
-elif st.session_state.pagina == "login":
+def renderizar_tela_login():
     renderizar_cabecalho("Login", "Acesso ao sistema.")
-    if st.session_state.pop("login_required", False):
-        st.warning("Faça login para continuar. Sua sessão pode ter expirado.")
-
     with st.container(border=True):
         with st.form("login_form"):
-            usuario = st.text_input("E-mail")
+            email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
+            entrar = st.form_submit_button("Entrar", width="stretch")
 
-            entrar = st.form_submit_button(
-                "Entrar",
-                width="stretch",
-            )
-
-            if entrar:
-                realizarLogin(usuario, senha)
-
+    if entrar:
+        realizar_login(email, senha)
+    st.divider()
     if st.button("← Voltar", key="voltar_login"):
         navegar("inicio")
 
-# ============================================================
-#                       TELA DE CADASTRO DE USUARIO
-# ============================================================
-elif st.session_state.pagina == "cadastrar_usuario":
-    renderizar_tela_cadastro_usuario()
+
+def renderizar_tela_cadastro_usuario():
+    if not usuario_administrador():
+        st.error("Somente administradores podem cadastrar usuários.")
+        return
+
+    renderizar_cabecalho(
+        "Cadastrar usuário",
+        "Preencha os dados para criar uma nova conta de acesso.",
+    )
+    dados = renderizar_formulario_usuario("registro")
+    if dados is None:
+        return
+
+    response = requisitar_api(
+        "POST",
+        "/user/userRegister",
+        token=st.session_state.access_token,
+        redirecionar_ao_expirar=True,
+        json=dados,
+    )
+    if response is not None:
+        st.success("Usuário cadastrado com sucesso.")
+
+
+def renderizar_tela_atualizar_usuario():
+    if not usuario_administrador():
+        st.error("Somente administradores podem alterar usuários.")
+        return
+
+    renderizar_cabecalho(
+        "Alterar usuário",
+        "Busque a conta que deseja alterar pelo e-mail.",
+    )
+    with st.form("buscar_usuario_atualizacao"):
+        email_busca = st.text_input("E-mail do usuário")
+        buscar = st.form_submit_button("Buscar usuário", width="stretch")
+
+    if buscar:
+        usuario = buscar_usuario_por_email(email_busca.strip())
+        if usuario is not None:
+            st.session_state.usuario_em_edicao = usuario
+
+    usuario = st.session_state.get("usuario_em_edicao")
+    if not isinstance(usuario, dict):
+        return
+
+    st.info(f"Editando: {usuario.get('username')} ({usuario.get('email')})")
+    chave = hashlib.sha256(usuario["email"].encode("utf-8")).hexdigest()[:12]
+    dados = renderizar_formulario_usuario(
+        "atualizacao",
+        usuario=usuario,
+        prefixo=f"usuario_edicao_{chave}",
+    )
+    if dados is None:
+        return
+
+    response = requisitar_api(
+        "PUT",
+        "/user/userUpdate_email",
+        token=st.session_state.access_token,
+        redirecionar_ao_expirar=True,
+        params={"email": usuario["email"]},
+        json=dados,
+    )
+    if response is not None:
+        st.session_state.pop("usuario_em_edicao", None)
+        definir_mensagem("success", "Usuário atualizado com sucesso.")
+        st.rerun()
+
+
+def renderizar_tela_excluir_usuario():
+    if not usuario_administrador():
+        st.error("Somente administradores podem excluir usuários.")
+        return
+
+    renderizar_cabecalho(
+        "Excluir usuário",
+        "Busque a conta que deseja excluir pelo e-mail.",
+    )
+    with st.form("buscar_usuario_exclusao"):
+        email_busca = st.text_input("E-mail do usuário")
+        buscar = st.form_submit_button("Buscar usuário", width="stretch")
+
+    if buscar:
+        usuario = buscar_usuario_por_email(email_busca.strip())
+        if usuario is not None:
+            st.session_state.usuario_para_excluir = usuario
+
+    usuario = st.session_state.get("usuario_para_excluir")
+    if not isinstance(usuario, dict):
+        return
+
+    st.warning(
+        f"Conta selecionada: {usuario.get('username')} ({usuario.get('email')}). "
+        "Esta ação não pode ser desfeita."
+    )
+    chave = hashlib.sha256(usuario["email"].encode("utf-8")).hexdigest()[:12]
+    with st.form(f"confirmar_exclusao_{chave}"):
+        confirmar = st.checkbox(
+            "Confirmo a exclusão desta conta.",
+            key=f"confirmar_exclusao_{chave}",
+        )
+        excluir = st.form_submit_button("Excluir usuário", width="stretch")
+
+    if not excluir:
+        return
+    if not confirmar:
+        st.error("Marque a confirmação antes de excluir o usuário.")
+        return
+
+    response = requisitar_api(
+        "DELETE",
+        "/user/userDelete_email",
+        token=st.session_state.access_token,
+        redirecionar_ao_expirar=True,
+        params={"email": usuario["email"]},
+    )
+    if response is not None:
+        st.session_state.pop("usuario_para_excluir", None)
+        definir_mensagem("success", "Usuário excluído com sucesso.")
+        if usuario["email"] == st.session_state.usuario_logado.get("email"):
+            encerrar_sessao()
+        st.rerun()
+
+
+def renderizar_menu_lateral():
+    with st.sidebar:
+        coluna_logo, coluna_titulo = st.columns([1, 2], vertical_alignment="center")
+        with coluna_logo:
+            st.image(
+                ASSETS_DIR / "Logo_sem_fundo.png",
+                width=75,
+                alt="Logo do sistema",
+            )
+        with coluna_titulo:
+            st.title("Menu")
+        if st.session_state.pagina != "inicio":
+            if st.button("Início", key="menu_inicio", width="stretch"):
+                navegar("inicio")
+
+        if st.button("Nova Análise", key="menu_nova_analise", width="stretch"):
+            limpar_selecao("analise")
+            navegar("analise", incluir_dados_paciente=True)
+        if st.button(
+            "Nova Análise Rápida",
+            key="menu_analise_rapida",
+            width="stretch",
+        ):
+            limpar_selecao("analise")
+            navegar("analise", incluir_dados_paciente=False)
+
+        usuario_logado = st.session_state.get("usuario_logado")
+        if isinstance(usuario_logado, dict):
+            coluna_icone, coluna_usuario = st.columns(
+                [1, 5],
+                vertical_alignment="center",
+            )
+            with coluna_icone:
+                st.image(ASSETS_DIR / "medico.png", width=28, alt="Usuário")
+            with coluna_usuario:
+                with st.expander(usuario_logado["username"]):
+                    st.caption(usuario_logado["email"])
+                    if st.button("Sair da conta", key="menu_sair", width="stretch"):
+                        encerrar_sessao()
+            if usuario_administrador():
+                st.divider()
+                st.caption("Administração")
+                if st.button(
+                    "Cadastrar usuário",
+                    key="menu_cadastrar_usuario",
+                    width="stretch",
+                ):
+                    navegar("cadastrar_usuario")
+                if st.button(
+                    "Alterar usuário",
+                    key="menu_atualizar_usuario",
+                    width="stretch",
+                ):
+                    st.session_state.pop("usuario_em_edicao", None)
+                    navegar("atualizar_usuario")
+                if st.button(
+                    "Excluir usuário",
+                    key="menu_excluir_usuario",
+                    width="stretch",
+                ):
+                    st.session_state.pop("usuario_para_excluir", None)
+                    navegar("excluir_usuario")
+        else:
+            if st.button("➔ Entrar", key="menu_entrar", width="stretch"):
+                navegar("login")
+
 
 # ============================================================
-#                       TELA DE ATUALIZACAO DE USUARIO
+# INICIALIZAÇÃO E ROTEAMENTO
 # ============================================================
-elif st.session_state.pagina == "atualizar_usuario":
-    renderizar_tela_atualizar_usuario()
+inicializar_estado()
+sincronizar_navegacao_com_url()
+sincronizar_sessao_navegador()
+renderizar_menu_lateral()
+exibir_mensagem_pendente()
 
-# ============================================================
-#                       TELA DE EXCLUSAO DE USUARIO
-# ============================================================
-elif st.session_state.pagina == "excluir_usuario":
-    renderizar_tela_excluir_usuario()
+TELAS = {
+    "inicio": renderizar_tela_inicio,
+    "login": renderizar_tela_login,
+    "analise": renderizar_tela_analise,
+    "cadastrar_usuario": renderizar_tela_cadastro_usuario,
+    "atualizar_usuario": renderizar_tela_atualizar_usuario,
+    "excluir_usuario": renderizar_tela_excluir_usuario,
+}
+TELAS[st.session_state.pagina]()

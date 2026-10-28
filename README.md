@@ -18,6 +18,7 @@ Aplicação composta por uma API FastAPI e uma interface Streamlit para analisar
 │   └── main.py              # Aplicação FastAPI
 ├── View/
 │   ├── assets/              # Imagens e recursos da interface
+│   ├── components/          # Componentes locais da interface
 │   └── app.py               # Aplicação Streamlit
 ├── migrations/              # Migrações Alembic
 ├── Testes/                  # Scripts de teste e manutenção
@@ -56,6 +57,7 @@ Edite `.env` e substitua os valores de exemplo. Configure:
   ```
 
 - `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_REGISTRO_PROFISSIONAL`, `ADMIN_CARGO` e `ADMIN_UF_REGISTRO` para a criação do primeiro administrador. A senha precisa ter pelo menos 12 caracteres.
+- `PERSISTIR_SESSAO_NAVEGADOR` controla a restauração da sessão ao recarregar a mesma aba (`true` por padrão).
 
 Não compartilhe nem versione o arquivo `.env`. O Compose configura o endereço interno do banco para a API automaticamente; `MYSQL_HOST` e `MYSQL_PORT` no `.env.example` servem para execução fora do Compose, enquanto a porta publicada no host é controlada por `MYSQL_PORT` (padrão `3306`).
 
@@ -78,6 +80,25 @@ Para executar em segundo plano:
 docker compose up --build -d
 ```
 
+### Atualizar após alterações no código
+
+Os Dockerfiles copiam os diretórios `App/` e `View/` para dentro das imagens.
+Por isso, alterações no backend, no frontend, em `pyproject.toml`, em `uv.lock`
+ou nos Dockerfiles exigem uma nova imagem. Para aplicar as alterações atuais,
+execute na raiz do projeto:
+
+```powershell
+docker compose up --build -d
+```
+
+Não é necessário executar `docker compose down` nem remover volumes para uma
+atualização normal. O volume `mysql_data` é preservado. Para uma alteração
+somente na interface, é possível reconstruir apenas o frontend:
+
+```powershell
+docker compose up --build -d frontend
+```
+
 Ver os logs:
 
 ```powershell
@@ -94,13 +115,98 @@ O banco permanece salvo no volume Docker `mysql_data`. Para apagar também os da
 
 ## Serviços e rotas da API
 
-- `POST /auth/login`: autentica um usuário e retorna um token Bearer.
-- `POST /predict/predictAI`: recebe imagens no campo multipart `files` e retorna os resultados da análise. Requer autenticação.
+- `POST /auth/login`: recebe `email` e `password`; retorna um token Bearer.
+- `POST /predict/predictAI`: recebe uma lista multipart no campo `files` e retorna
+  os resultados completos da análise. Requer autenticação.
+- `GET /reports/reportpdf`: recebe no corpo JSON os dados do paciente e o
+  resultado completo da predição; gera e retorna o relatório como arquivo PDF
+  para download. Requer autenticação.
 - `GET /user/me`: retorna os dados do usuário autenticado.
 - `GET /user/userByEmail`: consulta um usuário por e-mail; requer administrador.
 - `POST /user/userRegister`: cadastra um usuário; requer administrador.
 - `PUT /user/userUpdate_email`: atualiza um usuário; requer administrador.
 - `DELETE /user/userDelete_email`: remove um usuário; requer administrador.
+
+Os resultados bem-sucedidos da predição seguem o contrato `predict`,
+`total_fraturas`, `detections` e `final_img`. Esse mesmo resultado é enviado
+pela interface ao endpoint de relatório, sem conversão de nomes.
+
+### Geração do relatório em PDF
+
+Na tela de resultados, a interface permite gerar e baixar um relatório PDF com
+os dados do paciente, os dados do profissional autenticado e o resumo da
+análise. Resultados individuais com sucesso podem incluir a imagem anotada e
+suas detecções; itens com erro são omitidos dessa seção, mas aparecem na
+contagem geral do relatório. O documento também informa que o resultado é
+auxiliar e não substitui a avaliação de um profissional habilitado.
+
+O endpoint `GET /reports/reportpdf` requer autenticação Bearer e recebe um
+corpo JSON com esta estrutura:
+
+```json
+{
+  "pacienteInfo": {
+    "name": "Nome do paciente",
+    "sexo": "Feminino",
+    "ladoAnalisado": "Direito",
+    "dataNcmto": "1990-01-31"
+  },
+  "resultadosInfo": {
+    "status": "total_success",
+    "total": 1,
+    "sucessos": 1,
+    "erros": 0,
+    "resultados": [
+      {
+        "sucesso": true,
+        "predict": "Nenhuma indicação de fratura",
+        "total_fraturas": 0,
+        "detections": [],
+        "final_img": "BASE64_DA_IMAGEM_PNG"
+      }
+    ]
+  }
+}
+```
+
+`dataNcmto` deve estar no formato `AAAA-MM-DD`. `resultadosInfo` deve seguir o
+mesmo formato retornado por `/predict/predictAI`; `final_img` contém a imagem
+anotada em Base64. A resposta é `application/pdf`, enviada como anexo com o
+nome `relatorio.pdf`. Embora use o método `GET`, essa rota recebe os dados no
+corpo JSON; clientes HTTP precisam suportar esse formato de requisição.
+
+#### Gerar um PDF de teste sem rebuild
+
+Na raiz do repositório, execute no PowerShell:
+
+```powershell
+uv run --no-sync --group api python -m Testes.gerar_relatorio_teste
+```
+
+O comando gera um PDF em `Testes/arquivos_testes/` com dados, detecção e
+imagem ilustrativos, todos fictícios. O nome inclui data e hora
+(`relatorio_teste_AAAAMMDD_HHMMSS_microsegundos.pdf`) para preservar cada
+execução. Para gerar também a imagem de teste (com mais de 5 MB), execute:
+
+```powershell
+uv run --no-sync --group api python Testes\gerar_imagem_teste.py
+```
+
+A imagem será salva em `Testes/arquivos_testes/`, com data e hora no nome
+(`imagem_teste_AAAAMMDD_HHMMSS_microsegundos.png`). Não é necessário iniciar a
+API, conectar ao banco ou reconstruir as imagens Docker; as dependências do
+grupo `api` devem estar instaladas no ambiente local.
+
+## Interface e sessão
+
+A navegação da interface usa os parâmetros `pagina` e `modo` na URL. Isso
+permite que os botões Voltar/Avançar do navegador restaurem a tela anterior e
+que a página atual seja mantida ao recarregar.
+
+Por padrão, o token de acesso é mantido em `sessionStorage`: ele sobrevive a
+recarregamentos na mesma aba e é apagado ao sair da conta ou fechar a aba. O
+token não é colocado na URL. Para desativar esse comportamento, inicie o
+frontend com a variável `PERSISTIR_SESSAO_NAVEGADOR=false`.
 
 ## Dependências
 
@@ -117,3 +223,6 @@ uv sync --all-groups
 - **Falha ao carregar o modelo:** confirme que `App/core/yolo_model/pesos/best.pt` existe antes de construir a imagem.
 - **Porta ocupada:** ajuste `MYSQL_PORT` para a porta publicada do banco ou libere as portas `8000`, `8501` e `3306`, conforme aplicável.
 - **Build falha em `apt-get update`:** essa etapa instala bibliotecas de sistema da imagem da API; ela acontece antes do `uv sync` e não é corrigida alterando as dependências Python.
+- **A interface ou API continua exibindo uma versão anterior:** execute
+  `docker compose up --build -d`. Os containers em execução não recebem os
+  arquivos modificados no computador automaticamente.
