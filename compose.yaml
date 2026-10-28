@@ -62,6 +62,7 @@ services:
     restart: unless-stopped
     environment:
       API_URL: http://api:8000/predict/predictAI
+      PERSISTIR_SESSAO_NAVEGADOR: ${PERSISTIR_SESSAO_NAVEGADOR:-true}
     depends_on:
       api:
         condition: service_healthy

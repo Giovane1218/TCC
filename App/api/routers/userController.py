@@ -68,9 +68,7 @@ async def CriarUsusario(
 
 
 # ============================ATUALIZAR USUÁRIO==========================================
-@router.put(
-    "/userUpdate_email", response_model=UsuarioResponse, status_code=status.HTTP_200_OK
-)
+@router.put("/userUpdate_email", status_code=status.HTTP_204_NO_CONTENT)
 async def UpdateUsuario(
     email: EmailStr,
     dados: UsuarioUpdate,
@@ -82,8 +80,8 @@ async def UpdateUsuario(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=MENSSAGENS_ERRO["FORBIDDEN"],
         )
-    response = await ExecuteUpdateUser(db, dados, email)
-    return response
+    await ExecuteUpdateUser(db, dados, email)
+    return
 
 
 # ============================DELETAR USUÁRIO============================================
@@ -102,4 +100,4 @@ async def DeleteUsuario(
             detail=MENSSAGENS_ERRO["FORBIDDEN"],
         )
     await ExecuteDeleteUser(db, email)
-    return status.HTTP_204_NO_CONTENT
+    return

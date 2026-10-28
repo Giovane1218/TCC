@@ -4,14 +4,22 @@ class ImgSizeException(Exception):
 class ConteudoInvalidoError(Exception):
     pass
 
+
+class ValorInvalidoError(ValueError):
+    pass
+
+
 class NoResultError(Exception):
     pass
+
 
 class PredictError(Exception):
     pass
 
-class UnknowError(Exception):
+
+class UnknownError(Exception):
     pass
+
 
 class LoginError(Exception):
     pass

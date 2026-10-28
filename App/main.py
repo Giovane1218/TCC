@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from api.routers.authController import router as auth_router
 from api.routers.predictController import router as predict_router
+from api.routers.reportController import router as report_router
 from api.routers.userController import router as user_router
 from repositories.user_repository import initialize_authentication
 
@@ -18,6 +19,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(predict_router)
+app.include_router(report_router)
 app.include_router(auth_router)
 app.include_router(user_router)
 
