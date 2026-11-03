@@ -2,7 +2,6 @@ import base64
 import datetime
 import hashlib
 import html
-import json
 import os
 from pathlib import Path
 
@@ -31,7 +30,7 @@ API_BASE_URL = API_BASE_URL.rstrip("/")
 REPORT_ENDPOINT = os.getenv("REPORT_ENDPOINT", "/reports/reportpdf")
 REQUEST_TIMEOUT = 600
 MAX_IMG = 20
-MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 PAGINAS_VALIDAS = frozenset(
     {
         "inicio",
@@ -450,7 +449,7 @@ def renderizar_formulario_usuario(modo, usuario=None, prefixo=None):
 
 
 # ============================================================
-# APOIO À ANÁLISE E AO RELATÓRIO
+# ANÁLISE E RELATÓRIO
 # ============================================================
 def coletar_dados_paciente():
     coluna1, coluna2 = st.columns(2)

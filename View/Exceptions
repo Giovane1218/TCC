@@ -1,0 +1,34 @@
+class TimeoutErro(Exception):
+    pass
+
+
+class ConnectionError(Exception):
+    pass
+
+
+class HTTPExceptionError(Exception):
+    pass
+
+
+class RequestError(Exception):
+    pass
+
+
+class LoginResponseerror(ValueError):
+    pass
+
+
+class InvalidResponseError(Exception):
+    pass
+
+
+class NoResultError(Exception):
+    pass
+
+
+class PridictFailError(Exception):
+    pass
+
+
+class InvalidPdfError(ValueError):
+    pass

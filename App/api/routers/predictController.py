@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from schemas.predict_result_schema import AnaliseCompletaResponse
 from core import carregar_modelo, get_current_user, MAX_IMAGES, MENSSAGENS_ERRO
-from usecases.PredictUseCase.Predict import Execute
+from usecases.PredictUseCase.Predict import ExecutePredict
 
 router = APIRouter(
     prefix="/predict", tags=["Predição"], dependencies=[Depends(get_current_user)]
@@ -19,6 +19,6 @@ async def PredictAi(files: Annotated[list[UploadFile], File()]):
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=MENSSAGENS_ERRO["IMAGE_LIST_LENGTH_ERROR"],
         )
-    conteudoAnalisado = await Execute(files, model)
+    conteudoAnalisado = await ExecutePredict(files, model)
 
     return conteudoAnalisado

@@ -53,7 +53,7 @@ async def BuscarUsuario(
 @router.post(
     "/userRegister", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED
 )
-async def CriarUsusario(
+async def CreateUsusario(
     dados: UsuarioRequest,
     usuario_atual: Annotated[UsuarioModel, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],

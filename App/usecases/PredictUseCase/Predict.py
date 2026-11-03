@@ -10,7 +10,8 @@ from core import (
     MAX_IMAGE_SIZE_BYTES,
 )
 
-async def Execute(files, model):
+
+async def ExecutePredict(files, model):
     resultados = []
     for file in files:
         try:
@@ -25,12 +26,14 @@ async def Execute(files, model):
 
         except Exception as ex:
             status_code, menssagem = ClassificarErro(ex)
-            resultados.append({
-                "sucesso": False,
-                "status_code": status_code,
-                "erro": menssagem,
-                "file": file.filename
-                })
+            resultados.append(
+                {
+                    "sucesso": False,
+                    "status_code": status_code,
+                    "erro": menssagem,
+                    "file": file.filename,
+                }
+            )
 
     sucessos = sum(item["sucesso"] == True for item in resultados)
 
@@ -38,7 +41,7 @@ async def Execute(files, model):
         status = "total_success"
     elif sucessos == 0:
         status = "fail"
-    else: 
+    else:
         status = "partial_success"
 
     return {
@@ -46,7 +49,8 @@ async def Execute(files, model):
         "total": len(resultados),
         "sucessos": sucessos,
         "erros": len(resultados) - sucessos,
-        "resultados": resultados,}
+        "resultados": resultados,
+    }
 
 
 async def ValidarImg(content: bytes) -> None:
